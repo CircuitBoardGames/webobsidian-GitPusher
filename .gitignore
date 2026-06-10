@@ -8,5 +8,6 @@ data/
 .DS_Store
 web/dist/
 server/dist/
+server/public/
 coverage/
 *.tsbuildinfo
