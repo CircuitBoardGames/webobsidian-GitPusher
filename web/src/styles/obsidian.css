@@ -221,8 +221,9 @@ button { font-family: inherit; }
 .view-header .grow { flex: 1; }
 .tool-btn { border: 0; background: transparent; color: var(--text-faint); cursor: pointer;
   width: 28px; height: 28px; border-radius: var(--radius-s); display: grid; place-items: center; transition: var(--transition); }
-.tool-btn:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+.tool-btn:hover:not(:disabled) { background: var(--bg-modifier-hover); color: var(--text-normal); }
 .tool-btn.active { color: var(--text-accent); }
+.tool-btn:disabled { opacity: .35; cursor: default; }
 .seg { display: inline-flex; border: 1px solid var(--bg-modifier-border); border-radius: var(--radius); overflow: hidden; }
 .seg button { border: 0; background: transparent; color: var(--text-muted); padding: 3px 10px; cursor: pointer; font-size: 12px; }
 .seg button.active { background: var(--interactive-accent); color: var(--text-on-accent); }

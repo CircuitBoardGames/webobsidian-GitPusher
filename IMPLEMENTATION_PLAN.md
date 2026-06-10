@@ -4,7 +4,7 @@
 > Quy ước: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong.
 > Cập nhật file này **mỗi khi** một mục thay đổi trạng thái.
 
-Cập nhật lần cuối: 2026-06-05
+Cập nhật lần cuối: 2026-06-10
 
 ---
 
@@ -76,6 +76,7 @@ Cập nhật lần cuối: 2026-06-05
 - [x] M9.7 Graph view (mở trong tab + panel Filters kiểu Obsidian)
 - [x] M9.8 Settings UI (vault/git/api keys/plugins/theme)
 - [x] M9.9 Theme Obsidian-like (dark/light)
+- [x] M9.10 Navigation back/forward (toolbar ←/→ trên mọi view, history stack)
 
 ## Phase 10 — Docker & docs — FR-9
 - [x] M10.1 Multi-stage `Dockerfile` (web build → server runtime, git+git-lfs)
@@ -315,3 +316,8 @@ Cập nhật lần cuối: 2026-06-05
 - 2026-06-06: Label fade mượt theo zoom như Obsidian: nới vùng ramp alpha (over ~4.5px bán kính màn
   hình) → label hiện mờ ở zoom xa rồi từ từ rõ dần khi zoom vào, hub rõ trước, note nhỏ rõ sau. Verify
   CDP: mức fit label mờ/đa cấp opacity, zoom +4 label rõ-đậm hoàn toàn.
+- 2026-06-10: Navigation back/forward kiểu Obsidian (M9.10). Store thêm history stack (`history`/
+  `histIndex`, cap 100) + `goBack`/`goForward`; openFile/openGraph push entry qua `pushHistory` (cắt
+  nhánh forward, bỏ qua khi đang replay nhờ cờ `navByHistory`). View-header giờ render cho MỌI view
+  (trước chỉ markdown) với 2 nút ←/→ góc trái, disabled+mờ khi hết chỗ lùi/tới; Graph view cũng có
+  toolbar. Icon thêm arrow-left/arrow-right. typecheck cả 2 workspace + build web sạch.

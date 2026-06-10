@@ -45,6 +45,12 @@ export default function Workspace() {
   const toggleLeft = useStore((s) => s.toggleLeft);
   const toggleRight = useStore((s) => s.toggleRight);
   const createNote = useStore((s) => s.createNote);
+  const goBack = useStore((s) => s.goBack);
+  const goForward = useStore((s) => s.goForward);
+  const histIndex = useStore((s) => s.histIndex);
+  const historyLen = useStore((s) => s.history.length);
+  const canGoBack = histIndex > 0;
+  const canGoForward = histIndex < historyLen - 1;
 
   const isMd = activePath ? /\.(md|markdown)$/i.test(activePath) : false;
 
@@ -124,35 +130,47 @@ export default function Workspace() {
         </span>
       </div>
 
-      {activePath && isMd && (
+      {activePath && (
         <div className="view-header">
+          <button className="tool-btn" title="Back" disabled={!canGoBack} onClick={goBack}>
+            <Icon name="arrow-left" size={18} />
+          </button>
+          <button className="tool-btn" title="Forward" disabled={!canGoForward} onClick={goForward}>
+            <Icon name="arrow-right" size={18} />
+          </button>
           <span className="grow" />
           <span className="crumbs">
-            {activePath.split('/').map((seg, i, arr) => (
-              <span key={i}>
-                {i > 0 && <span className="sep">/</span>}
-                {seg.replace(/\.(md|markdown)$/, '')}
-              </span>
-            ))}
+            {activePath === GRAPH_PATH
+              ? 'Graph view'
+              : activePath.split('/').map((seg, i) => (
+                  <span key={i}>
+                    {i > 0 && <span className="sep">/</span>}
+                    {seg.replace(/\.(md|markdown)$/, '')}
+                  </span>
+                ))}
           </span>
           <span className="grow" />
-          <button className={`tool-btn ${bookmarks.includes(activePath) ? 'active' : ''}`} title="Bookmark" onClick={() => toggleBookmark(activePath)}>
-            <Icon name="bookmark" size={16} />
-          </button>
-          <button className="tool-btn" title="Open to the right" onClick={() => openToSide(activePath)}>
-            <Icon name="columns" size={16} />
-          </button>
-          <div className="seg">
-            <button className={viewMode === 'source' ? 'active' : ''} onClick={() => setViewMode('source')} title="Source">
-              Source
-            </button>
-            <button className={viewMode === 'live' ? 'active' : ''} onClick={() => setViewMode('live')} title="Live preview">
-              Live
-            </button>
-            <button className={viewMode === 'reading' ? 'active' : ''} onClick={() => setViewMode('reading')} title="Reading">
-              Reading
-            </button>
-          </div>
+          {isMd && (
+            <>
+              <button className={`tool-btn ${bookmarks.includes(activePath) ? 'active' : ''}`} title="Bookmark" onClick={() => toggleBookmark(activePath)}>
+                <Icon name="bookmark" size={16} />
+              </button>
+              <button className="tool-btn" title="Open to the right" onClick={() => openToSide(activePath)}>
+                <Icon name="columns" size={16} />
+              </button>
+              <div className="seg">
+                <button className={viewMode === 'source' ? 'active' : ''} onClick={() => setViewMode('source')} title="Source">
+                  Source
+                </button>
+                <button className={viewMode === 'live' ? 'active' : ''} onClick={() => setViewMode('live')} title="Live preview">
+                  Live
+                </button>
+                <button className={viewMode === 'reading' ? 'active' : ''} onClick={() => setViewMode('reading')} title="Reading">
+                  Reading
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

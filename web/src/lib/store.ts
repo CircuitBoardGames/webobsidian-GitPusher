@@ -83,6 +83,11 @@ interface AppState {
 
   tabs: Tab[];
   activePath: string | null;
+  /** Back/forward navigation stack of visited paths (incl. GRAPH_PATH). */
+  history: string[];
+  histIndex: number;
+  goBack: () => void;
+  goForward: () => void;
   content: string;
   dirty: boolean;
   viewMode: ViewMode;
@@ -179,6 +184,19 @@ function applyPersisted(s: any, set: (p: any) => void): void {
   });
 }
 
+/** When true, openFile/openGraph won't push a new history entry (we're replaying one). */
+let navByHistory = false;
+
+/** Push `path` onto the back/forward stack (truncating any forward entries). */
+function pushHistory(s: { history: string[]; histIndex: number }, path: string): { history: string[]; histIndex: number } {
+  if (navByHistory || s.history[s.histIndex] === path) {
+    return { history: s.history, histIndex: s.histIndex };
+  }
+  let history = [...s.history.slice(0, s.histIndex + 1), path];
+  if (history.length > 100) history = history.slice(history.length - 100);
+  return { history, histIndex: history.length - 1 };
+}
+
 // Only start saving after the initial load; suppress while applying remote/initial state.
 let canSave = false;
 let suppressSave = false;
@@ -209,6 +227,32 @@ export const useStore = create<AppState>()(
 
       tabs: [],
       activePath: null,
+      history: [],
+      histIndex: -1,
+      goBack: () => {
+        const { history, histIndex } = get();
+        if (histIndex <= 0) return;
+        const target = history[histIndex - 1];
+        navByHistory = true;
+        set({ histIndex: histIndex - 1 });
+        Promise.resolve(get().openFile(target))
+          .catch(() => {})
+          .finally(() => {
+            navByHistory = false;
+          });
+      },
+      goForward: () => {
+        const { history, histIndex } = get();
+        if (histIndex >= history.length - 1) return;
+        const target = history[histIndex + 1];
+        navByHistory = true;
+        set({ histIndex: histIndex + 1 });
+        Promise.resolve(get().openFile(target))
+          .catch(() => {})
+          .finally(() => {
+            navByHistory = false;
+          });
+      },
       content: '',
       dirty: false,
       viewMode: 'live',
@@ -267,6 +311,7 @@ export const useStore = create<AppState>()(
           activePath: GRAPH_PATH,
           content: '',
           dirty: false,
+          ...pushHistory(s, GRAPH_PATH),
         }));
       },
       graphSettings: DEFAULT_GRAPH_SETTINGS,
@@ -296,7 +341,7 @@ export const useStore = create<AppState>()(
         set((s) => {
           const tabs = s.tabs.find((t) => t.path === path) ? s.tabs : [...s.tabs, { path, title }];
           const recent = [path, ...s.recent.filter((p) => p !== path)].slice(0, 20);
-          return { tabs, activePath: path, content, dirty: false, recent };
+          return { tabs, activePath: path, content, dirty: false, recent, ...pushHistory(s, path) };
         });
       },
 
