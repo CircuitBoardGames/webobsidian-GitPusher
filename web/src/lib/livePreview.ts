@@ -437,7 +437,7 @@ function buildMermaid(state: EditorState): DecorationSet {
 export const mermaidField = StateField.define<DecorationSet>({
   create: (state) => buildMermaid(state),
   update(value, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setLivePreviewEnabled))) {
+    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setLivePreviewEnabled) || e.is(setLivePreviewReadonly))) {
       return buildMermaid(tr.state);
     }
     return value.map(tr.changes);
@@ -519,7 +519,7 @@ export const calloutFoldDeco = StateField.define<DecorationSet>({
     if (
       tr.docChanged ||
       tr.selection ||
-      tr.effects.some((e) => e.is(toggleCalloutFold) || e.is(setLivePreviewEnabled))
+      tr.effects.some((e) => e.is(toggleCalloutFold) || e.is(setLivePreviewEnabled) || e.is(setLivePreviewReadonly))
     ) {
       return buildCalloutFolds(tr.state);
     }
@@ -672,11 +672,12 @@ function serializeTable(header: string[], align: (Align | '')[], rows: string[][
  * which makes `tableField` rebuild the widget — so the DOM is always in sync.
  */
 class TableWidget extends WidgetType {
-  constructor(readonly block: TableBlock) {
+  /** `ro` = reading mode: render-only, no cell editing / handles / menus. */
+  constructor(readonly block: TableBlock, readonly ro: boolean) {
     super();
   }
   eq(o: TableWidget) {
-    return o.block.key === this.block.key;
+    return o.block.key === this.block.key && o.ro === this.ro;
   }
   ignoreEvent() {
     // We own all interaction (editing + controls); keep events from reaching CM.
@@ -730,6 +731,11 @@ class TableWidget extends WidgetType {
         if (cell.tagName === 'TH') cell.dataset.align = b.align[col]!;
       } else if (cell.tagName === 'TH') {
         cell.dataset.align = '';
+      }
+      if (this.ro) {
+        // reading mode: display only
+        setCellRendered(cell);
+        return;
       }
       cell.setAttribute('contenteditable', 'true');
       cell.spellcheck = false;
@@ -852,6 +858,9 @@ class TableWidget extends WidgetType {
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
+
+    // Reading mode: no handles / add buttons / menus — table is display-only.
+    if (this.ro) return wrap;
 
     // ---- row / column select handles (hover-highlight + open the format menu) ----
     const highlightCol = (c: number, on: boolean) => {
@@ -1108,11 +1117,12 @@ const PROP_TYPE_OPTIONS: { label: string; dt: string }[] = [
 ];
 
 class FrontmatterWidget extends WidgetType {
-  constructor(readonly yaml: string) {
+  /** `ro` = reading mode: display-only properties. */
+  constructor(readonly yaml: string, readonly ro: boolean) {
     super();
   }
   eq(o: FrontmatterWidget) {
-    return o.yaml === this.yaml;
+    return o.yaml === this.yaml && o.ro === this.ro;
   }
   ignoreEvent() {
     return true;
@@ -1232,6 +1242,7 @@ class FrontmatterWidget extends WidgetType {
     box.appendChild(header);
 
     const editable = (el: HTMLElement, onCommit: () => void) => {
+      if (this.ro) return; // reading mode: no inline editing
       el.setAttribute('contenteditable', 'true');
       el.spellcheck = false;
       el.addEventListener('keydown', (e) => {
@@ -1404,6 +1415,7 @@ class FrontmatterWidget extends WidgetType {
 
       // Right-click the key or icon → Property type / Copy / Remove (like Obsidian).
       const openPropMenu = (e: MouseEvent) => {
+        if (this.ro) return;
         e.preventDefault();
         e.stopPropagation();
         openMenu({ x: e.clientX, y: e.clientY, items: propMenu(p.key, idx, renderAsList ? 'list' : dt) });
@@ -1571,7 +1583,12 @@ class FrontmatterWidget extends WidgetType {
       e.preventDefault();
       void startAdd();
     });
-    box.appendChild(addBtn);
+    if (!this.ro) box.appendChild(addBtn);
+    // Reading mode: strip any remaining editing affordances (pill texts, inputs).
+    if (this.ro) {
+      for (const el of box.querySelectorAll('[contenteditable]')) el.removeAttribute('contenteditable');
+      for (const inp of box.querySelectorAll('input')) (inp as HTMLInputElement).disabled = true;
+    }
     return box;
   }
 }
@@ -2132,8 +2149,9 @@ function buildFrontmatter(state: EditorState): DecorationSet {
   const blockEnd = text[end - 1] === '\n' ? end - 1 : end;
   // Always show the interactive Properties editor (like Obsidian); editing happens
   // in the widget, so the caret no longer reveals raw YAML in Live mode.
+  const ro = state.field(livePreviewReadonly, false) ?? false;
   return Decoration.set([
-    Decoration.replace({ widget: new FrontmatterWidget(fm[1]), block: true }).range(0, blockEnd),
+    Decoration.replace({ widget: new FrontmatterWidget(fm[1], ro), block: true }).range(0, blockEnd),
   ]);
 }
 
@@ -2216,7 +2234,7 @@ export const inlineTitleField = StateField.define<DecorationSet>({
 export const frontmatterField = StateField.define<DecorationSet>({
   create: (state) => buildFrontmatter(state),
   update(value, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setLivePreviewEnabled))) {
+    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setLivePreviewEnabled) || e.is(setLivePreviewReadonly))) {
       return buildFrontmatter(tr.state);
     }
     return value.map(tr.changes);
@@ -2230,10 +2248,11 @@ function buildTables(state: EditorState): DecorationSet {
   if (!state.field(livePreviewState, false)) return Decoration.none;
   const tables = scanTables(state.doc);
   if (!tables.length) return Decoration.none;
+  const ro = state.field(livePreviewReadonly, false) ?? false;
   // Like Obsidian, tables are ALWAYS shown as the interactive widget (never as raw
   // pipes) — editing happens in-cell, so the selection no longer reveals raw.
   const ranges: Range<Decoration>[] = tables.map((t) =>
-    Decoration.replace({ widget: new TableWidget(t), block: true }).range(t.from, t.to),
+    Decoration.replace({ widget: new TableWidget(t, ro), block: true }).range(t.from, t.to),
   );
   return Decoration.set(ranges, true);
 }
@@ -2241,7 +2260,7 @@ function buildTables(state: EditorState): DecorationSet {
 export const tableField = StateField.define<DecorationSet>({
   create: (state) => buildTables(state),
   update(value, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setLivePreviewEnabled))) {
+    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setLivePreviewEnabled) || e.is(setLivePreviewReadonly))) {
       return buildTables(tr.state);
     }
     return value.map(tr.changes);
@@ -2276,7 +2295,7 @@ function buildHtmlBlocks(state: EditorState): DecorationSet {
 export const htmlBlockField = StateField.define<DecorationSet>({
   create: (state) => buildHtmlBlocks(state),
   update(value, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setLivePreviewEnabled))) {
+    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(setLivePreviewEnabled) || e.is(setLivePreviewReadonly))) {
       return buildHtmlBlocks(tr.state);
     }
     return value.map(tr.changes);

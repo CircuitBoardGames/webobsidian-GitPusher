@@ -380,6 +380,11 @@ button { font-family: inherit; }
 .cm-gutters { background: var(--background-primary) !important; border: 0 !important; color: var(--text-faint) !important; }
 .cm-activeLine { background: transparent !important; }
 .cm-activeLineGutter { background: transparent !important; }
+/* …but don't clobber lines that carry their own background (callout/code) */
+.cm-s-obsidian .cm-line.cm-callout-line.cm-activeLine {
+  background: rgba(var(--callout-color, var(--callout-default)), 0.1) !important; }
+.cm-s-obsidian .cm-line.HyperMD-codeblock-bg.cm-activeLine {
+  background: var(--background-primary-alt) !important; }
 .cm-selectionBackground, .cm-editor ::selection { background: var(--text-selection) !important; }
 
 /* ---- Obsidian editor typography (cm-s-obsidian, §19/§20) ---- */
