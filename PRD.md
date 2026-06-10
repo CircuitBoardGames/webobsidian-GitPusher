@@ -1,7 +1,8 @@
 # PRD — WebObsidian
 
 > Product Requirements Document
-> Phiên bản: 0.1 · Cập nhật: 2026-06-03 · Trạng thái: Draft
+> Phiên bản: 0.2 · Cập nhật: 2026-06-10 · Trạng thái: Draft
+> Changelog 0.2: thêm FR-10 (deep-link URL `/note/...` + public share link readonly + trang quản lý share tập trung), API `/api/shares` + `/public/shares`, data model `data/shares.json`.
 
 ---
 
@@ -141,6 +142,38 @@ webobsidian/
 - `docker-compose.yml`: mount vault volume, data volume, env cho password/secret.
 - Healthcheck, restart policy.
 
+### FR-10 · Deep-link URL & Public share
+- **Deep-link**: URL trình duyệt phản ánh note đang mở — `/note/<vault-relative-path>`
+  (URL-encode từng segment); Graph view = `/graph`. Mở URL trực tiếp (sau login) sẽ mở đúng
+  note; back/forward của trình duyệt hoạt động (popstate ↔ history stack của app).
+- **Public share (readonly, không cần login)**:
+  - Tạo share link cho một note `.md` → token ngẫu nhiên (16 bytes, base64url), URL dạng `/share/<token>`.
+  - Trang public render Reading view (markdown → HTML sanitize), **không** sidebar/editor,
+    không yêu cầu auth. Wikilink trong note hiển thị như text tĩnh (không điều hướng).
+  - **SEO / SSR**: `GET /share/{id}` được **server render thành HTML hoàn chỉnh** (không cần JS
+    để đọc nội dung → Google indexable). Head gồm: `<title>` (tên note), meta description
+    (~160 ký tự đầu của body, đã strip markdown), canonical, Open Graph
+    (`og:title/description/type=article/url/site_name/image` — ảnh đầu tiên note nhúng hoặc URL
+    ảnh web đầu tiên), Twitter card (`summary_large_image`/`summary`), `robots: index,follow`.
+    Share có password → SSR trang nhập password (**noindex**, không kèm nội dung note, form unlock
+    bằng inline JS); share disabled/không tồn tại → 404 (noindex). Render markdown phía server
+    dùng cùng pipeline unified/remark/rehype + sanitize (port từ web, kèm CSS inline từ bundle).
+  - File nhúng (ảnh/pdf/video) trong note được serve qua endpoint public **giới hạn đúng các
+    file mà note đó nhúng** (`![[...]]` / `![](...)`) — không cho đọc tuỳ ý vault. Không serve
+    file `.md` qua endpoint này (không transclusion ở trang public).
+  - Share record: `{ id, path, enabled, createdAt, passwordHash? }` lưu ở `data/shares.json`
+    (JSON, atomic write). Mỗi note tối đa 1 share record (tạo lại → trả record cũ + enable).
+  - Disable (giữ token, có thể bật lại) hoặc xoá hẳn. Token bị disable/xoá → trang public trả 404.
+  - **Password tuỳ chọn cho từng share**: đặt/xoá ở trang quản lý (hash scrypt, không bao giờ trả
+    hash về client — chỉ `hasPassword`). Khi share có password: endpoint public trả 401
+    `{passwordRequired: true}`; khách nhập password → `POST /public/shares/{id}/unlock` → JWT
+    (ký bằng `jwtSecret`, TTL 12h, payload gắn share id) đặt trong httpOnly cookie scope đúng
+    `/public/shares/{id}` — ảnh nhúng tự gửi cookie. Đổi/xoá password không vô hiệu cookie đã cấp
+    (TTL ngắn chấp nhận được cho v1).
+- **Quản lý tập trung**: Settings → tab "Sharing" liệt kê toàn bộ note đã share, có ô search
+  lọc theo path, toggle enable/disable nhanh, copy link, xoá. Tạo share từ context menu của
+  note trong file tree ("Copy public link").
+
 ---
 
 ## 4. Yêu cầu phi chức năng (NFR)
@@ -172,6 +205,20 @@ GET    /api/git/status | POST /api/git/{pull,commit,push,sync}
 GET/PUT /api/settings
 GET/POST/DELETE /api/keys     # quản lý API key
 GET    /api/plugins | POST /api/plugins/install | PATCH enable
+GET    /api/shares            # list share (quản lý)
+POST   /api/shares            # tạo share cho 1 note {path} → {id,...}
+PATCH  /api/shares/{id}       # enable/disable {enabled}
+DELETE /api/shares/{id}       # xoá share
+```
+
+### Public share (không auth) — `/public` & `/share`
+```
+GET    /public/shares/{id}        # nội dung note đã share {title, content} (404 nếu disabled,
+                                  # 401 {passwordRequired} nếu có password & chưa unlock)
+POST   /public/shares/{id}/unlock # {password} → set httpOnly cookie unlock (JWT 12h)
+GET    /public/shares/{id}/file?path=  # file nhúng trong note (chỉ file note đó tham chiếu)
+GET    /share/{id}                # trang HTML public — SERVER-RENDERED (SEO meta + OG + nội dung
+                                  # note trong HTML; locked → form password noindex)
 ```
 
 ### Agent API (API-key auth) — `/api/v1`
@@ -206,6 +253,15 @@ GET    /api/v1/tags
   "ui":     { "theme": "obsidian-dark", "defaultView": "live" },
   "plugins":{ "enabled": ["dataview"], "installed": [] }
 }
+```
+
+### `data/shares.json` (public share links — FR-10)
+```jsonc
+[
+  { "id": "base64url-16-bytes", "path": "Folder/Note.md",
+    "enabled": true, "createdAt": "2026-06-10T00:00:00.000Z",
+    "passwordHash": "scrypt$...salt...$...hash..." } // optional — share không password thì bỏ field
+]
 ```
 
 ---

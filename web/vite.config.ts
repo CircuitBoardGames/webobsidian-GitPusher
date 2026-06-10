@@ -38,6 +38,8 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:8787',
       '/auth': 'http://localhost:8787',
+      '/public': 'http://localhost:8787',
+      '/share': 'http://localhost:8787', // SSR share page is server-rendered even in dev
       '/ws': { target: 'ws://localhost:8787', ws: true },
     },
   },

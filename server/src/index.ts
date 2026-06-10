@@ -20,6 +20,8 @@ import { keysRouter } from './routes/keys.js';
 import { pluginsRouter } from './routes/plugins.js';
 import { agentRouter } from './routes/agent.js';
 import { uiStateRouter } from './routes/uistate.js';
+import { sharesRouter, publicSharesRouter } from './routes/shares.js';
+import { sharePageRouter } from './routes/sharepage.js';
 import { initSearch, qmd } from './services/search.js';
 import { buildLinkGraph, updateLinkGraphForFile } from './services/links.js';
 import { buildFileIndex, indexFile, unindexFile } from './services/fileindex.js';
@@ -65,6 +67,9 @@ async function main() {
   app.use('/api/keys', keysRouter);
   app.use('/api/plugins', pluginsRouter);
   app.use('/api/uistate', uiStateRouter);
+  app.use('/api/shares', sharesRouter); // manage public share links (auth)
+  app.use('/public/shares', publicSharesRouter); // shared-note content (NO auth)
+  app.use('/share', sharePageRouter); // SSR public share page (NO auth, SEO/OG meta)
   app.use('/api', searchRouter); // /api/search, /api/tags, /api/backlinks, /api/graph...
 
   // Static SPA (built into server/public)
@@ -72,7 +77,7 @@ async function main() {
   if (await dirExists(publicDir)) {
     app.use(express.static(publicDir));
     app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api') || req.path.startsWith('/auth')) return next();
+      if (req.path.startsWith('/api') || req.path.startsWith('/auth') || req.path.startsWith('/public')) return next();
       res.sendFile(path.join(publicDir, 'index.html'));
     });
   }

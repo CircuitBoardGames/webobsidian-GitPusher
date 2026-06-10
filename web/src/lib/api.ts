@@ -10,12 +10,33 @@ export interface TreeNode {
   children?: TreeNode[];
 }
 
+export interface ShareRecord {
+  id: string;
+  path: string;
+  enabled: boolean;
+  createdAt: string;
+  hasPassword?: boolean;
+}
+
 export interface SearchHit {
   path: string;
   title: string;
   score: number;
   tags: string[];
   snippet: string;
+}
+
+export interface MatchContext {
+  text: string;
+  ranges: [number, number][];
+  pre: boolean;
+  post: boolean;
+}
+
+export interface NoteMatches {
+  path: string;
+  count: number;
+  contexts: MatchContext[];
 }
 
 async function req<T>(url: string, opts: RequestInit = {}): Promise<T> {
@@ -88,6 +109,12 @@ export const api = {
     req<{ hits: SearchHit[] }>(
       `/api/search?q=${encodeURIComponent(q)}${limit ? `&limit=${limit}` : ''}`,
     ),
+  // per-note highlighted match contexts for the given paths (lazy, batched)
+  searchMatches: (query: string, paths: string[], matchCase = false) =>
+    req<{ matches: NoteMatches[] }>('/api/search/matches', {
+      method: 'POST',
+      body: JSON.stringify({ query, paths, matchCase }),
+    }),
   tags: () => req<{ tags: { tag: string; count: number }[] }>('/api/tags'),
   properties: () =>
     req<{ properties: { key: string; type: string; count: number }[] }>('/api/properties'),
@@ -141,6 +168,19 @@ export const api = {
   createKey: (name: string, scopes: string[]) =>
     req<{ key: string; record: any }>('/api/keys/', { method: 'POST', body: JSON.stringify({ name, scopes }) }),
   revokeKey: (id: string) => req<{ ok: boolean }>(`/api/keys/${id}`, { method: 'DELETE' }),
+
+  // public shares (FR-10)
+  listShares: () => req<{ shares: ShareRecord[] }>('/api/shares/'),
+  createShare: (path: string) =>
+    req<{ share: ShareRecord }>('/api/shares/', { method: 'POST', body: JSON.stringify({ path }) }),
+  setShareEnabled: (id: string, enabled: boolean) =>
+    req<{ share: ShareRecord }>(`/api/shares/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  deleteShare: (id: string) => req<{ ok: true }>(`/api/shares/${id}`, { method: 'DELETE' }),
+  // password = null clears the share's password
+  setSharePassword: (id: string, password: string | null) =>
+    req<{ share: ShareRecord }>(`/api/shares/${id}`, { method: 'PATCH', body: JSON.stringify({ password }) }),
+  // NOTE: the public-facing /share/<id> page is fully server-rendered (SSR) —
+  // the SPA never fetches /public/shares/* itself.
 
   // plugins
   listPlugins: () => req<{ plugins: any[] }>('/api/plugins/'),

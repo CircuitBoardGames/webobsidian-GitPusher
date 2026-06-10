@@ -134,6 +134,22 @@ Cập nhật lần cuối: 2026-06-10
       tab kia apply (bỏ echo theo `originId`, lưu nội dung đang sửa trước khi chuyển, re-hydrate)
 - [x] M15.4 Click-to-edit heading 1 lần (posAtCoords precise=false); heading bỏ underline
 
+## Phase 16 — Deep-link URL & Public share — FR-10 (theo yêu cầu người dùng)
+- [x] M16.1 URL `/note/<path>` đồng bộ với note đang mở (pushState/popstate, mở deep-link sau login,
+      Graph = `/graph`)
+- [x] M16.2 Server: service `shares` (`data/shares.json`, atomic write) + routes `/api/shares`
+      (list/create/toggle/delete, auth) + `/public/shares/:id{,/file}` (không auth, guard chỉ
+      serve file note đó nhúng, không serve `.md`)
+- [x] M16.3 Trang public `/share/<token>` readonly (render Reading view, không cần login)
+- [x] M16.4 UI: context menu note "Copy public link"; Settings → tab "Sharing" quản lý tập trung
+      (search, toggle enable/disable nhanh, copy link, xoá)
+- [x] M16.5 Password tuỳ chọn cho từng share: đặt/xoá ở tab Sharing (scrypt hash, chỉ trả
+      `hasPassword`); public 401 `{passwordRequired}` → form nhập password → unlock JWT cookie
+      (httpOnly, scope `/public/shares/{id}`, 12h)
+- [x] M16.6 SSR trang `/share/{id}`: server render HTML hoàn chỉnh (Google indexable) + SEO meta
+      (title, description, canonical, Open Graph + og:image, Twitter card); locked → form password
+      noindex; thay thế trang React /share (web bỏ PublicNote, dev proxy /share về server)
+
 ### Nhật ký tiến độ
 - 2026-06-03: Khởi tạo PRD.md, IMPLEMENTATION_PLAN.md, CLAUDE.md.
 - 2026-06-03: Hoàn tất Phase 0–10. Backend (auth, vault, QMD search, links/graph, git+LFS,
@@ -342,3 +358,36 @@ Cập nhật lần cuối: 2026-06-10
   `.search-panel` height 100% flex-column, `.search-head` flex-shrink:0 (đứng yên), `.search-results`
   flex:1 + overflow-y:auto tự cuộn riêng → đầu danh sách không thể đè lên khung. IntersectionObserver
   đổi root sang `.search-results` (ref) thay vì viewport. typecheck + build web sạch.
+- 2026-06-10: Phase 16 (FR-10) — deep-link URL + public share. URL `/note/<path>` sync 2 chiều
+  với tab đang mở (module `web/src/lib/urlsync.ts`: pushState khi đổi note, popstate → openFile,
+  lần sync đầu replaceState; deep-link thắng workspace restore). Share public: `data/shares.json`
+  (1 record/note, token 16-byte base64url), `/api/shares` CRUD + toggle enabled, `/public/shares/:id`
+  trả {title, content} không lộ path, `/public/shares/:id/file` chỉ serve đúng file note nhúng
+  (`![[...]]`/`![](...)`, resolve theo basename như files API, chặn `.md`). Trang `/share/<id>`
+  render Reading view standalone (main.tsx branch trước App, không auth), wikilink trơ. UI: context
+  menu "Copy public link" (FileTree), Settings → tab Sharing (search, Copy link, Disable/Enable,
+  Delete; click path mở note). Rename note tự cập nhật share path. Verify end-to-end qua curl
+  (401 file API vs 200 public, allowlist 404, disable→404, re-enable→200) + Chrome (trang share
+  render ảnh nhúng trong context cô lập không cookie; deep-link mở đúng note; browser Back đổi note;
+  tab Sharing hiển thị đủ controls). Typecheck + build sạch.
+- 2026-06-10: M16.5 — password riêng cho từng share link. Server: `ShareRecord.passwordHash`
+  (scrypt, tái dùng hash/verify của auth service; không bao giờ trả hash — API trả `hasPassword`),
+  PATCH /api/shares/:id nhận {password: string|null} (set/xoá), POST /public/shares/:id/unlock
+  đổi password lấy JWT cookie httpOnly scope `/public/shares/:id` TTL 12h (ảnh nhúng tự gửi cookie);
+  GET content/file trả 401 {passwordRequired} khi chưa unlock. Web: PublicNote thêm form unlock
+  (sai password báo lỗi, đúng → render); tab Sharing thêm nút "Password…/Password ✓" (prompt đặt/
+  đổi/xoá) + badge "password-protected". Verify curl (set→401→unlock sai 401→unlock đúng→cookie
+  →200 content+file, xoá password→200 lại, shares.json mode 600 chứa scrypt hash) + Chrome context
+  cô lập (form hiện, sai báo lỗi, đúng mở note + ảnh load, tab Sharing đúng trạng thái).
+- 2026-06-10: M16.6 — SSR + SEO cho trang share public. Server render `GET /share/:id` thành HTML
+  hoàn chỉnh (route `sharepage.ts` mount trước static): nội dung note nằm ngay trong HTML (Google
+  indexable, không cần JS), head đủ title / meta description (strip markdown ~160 ký tự) / canonical /
+  og:type=article + og:site_name + og:title/description/url/image (ảnh đầu tiên note nhúng — URL
+  tuyệt đối qua endpoint public, hoặc ảnh web đầu tiên) / twitter:card summary_large_image. Render
+  bằng service `renderhtml.ts` — port pipeline unified/remark/rehype+sanitize từ web (giữ sync),
+  deps thêm vào server workspace; CSS bundle của SPA được inline nên giao diện khớp Reading view.
+  Share có password → SSR form unlock (noindex, không lộ nội dung/metadata; inline JS POST unlock
+  rồi reload); cookie unlock đổi path '/' để cả /share/:id lẫn /public/shares/:id đều nhận. Bỏ trang
+  React PublicNote (SSR thay thế), vite proxy thêm /share. Verify curl: locked → noindex + không leak,
+  mở khoá → đủ meta + content + img + CSS inline, id sai → 404 noindex; Chrome context cô lập: form
+  unlock sai báo lỗi, đúng → reload ra note y hệt Reading view. Typecheck + build sạch.

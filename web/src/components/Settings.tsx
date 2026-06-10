@@ -3,7 +3,7 @@ import { useStore } from '../lib/store';
 import { api } from '../lib/api';
 import Icon from './Icon';
 
-type Section = 'vault' | 'git' | 'api' | 'plugins' | 'appearance' | 'about';
+type Section = 'vault' | 'git' | 'api' | 'sharing' | 'plugins' | 'appearance' | 'about';
 
 export default function Settings() {
   const open = useStore((s) => s.settingsOpen);
@@ -22,7 +22,7 @@ export default function Settings() {
       <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
         <div className="settings-layout">
           <div className="settings-nav">
-            {(['vault', 'git', 'api', 'plugins', 'appearance', 'about'] as Section[]).map((s) => (
+            {(['vault', 'git', 'api', 'sharing', 'plugins', 'appearance', 'about'] as Section[]).map((s) => (
               <button key={s} className={section === s ? 'active' : ''} onClick={() => setSection(s)}>
                 {labels[s]}
               </button>
@@ -32,6 +32,7 @@ export default function Settings() {
             {settings && section === 'vault' && <VaultSettings s={settings} reload={() => api.getSettings().then(setSettings)} />}
             {settings && section === 'git' && <GitSettings s={settings} reload={() => api.getSettings().then(setSettings)} />}
             {section === 'api' && <ApiKeys />}
+            {section === 'sharing' && <Shares />}
             {section === 'plugins' && <Plugins />}
             {settings && section === 'appearance' && <Appearance s={settings} />}
             {section === 'about' && <About />}
@@ -46,6 +47,7 @@ const labels: Record<Section, string> = {
   vault: 'Vault & Files',
   git: 'GitHub Sync',
   api: 'API Keys',
+  sharing: 'Sharing',
   plugins: 'Community Plugins',
   appearance: 'Appearance',
   about: 'About',
@@ -191,6 +193,98 @@ function ApiKeys() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function Shares() {
+  const notify = useStore((s) => s.notify);
+  const openFile = useStore((s) => s.openFile);
+  const setOpen = useStore((s) => s.setSettings);
+  const [shares, setShares] = useState<any[]>([]);
+  const [query, setQuery] = useState('');
+  const load = () => api.listShares().then((r) => setShares(r.shares)).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const url = (id: string) => `${location.origin}/share/${id}`;
+  const copy = (id: string) => {
+    navigator.clipboard?.writeText(url(id)).catch(() => {});
+    notify('Public link copied');
+  };
+  const toggle = async (s: any) => {
+    await api.setShareEnabled(s.id, !s.enabled);
+    load();
+  };
+  const remove = async (s: any) => {
+    if (!confirm(`Delete the public link for "${s.path}"? The URL stops working permanently.`)) return;
+    await api.deleteShare(s.id);
+    load();
+  };
+  const setPassword = async (s: any) => {
+    const pw = prompt(
+      s.hasPassword
+        ? 'New password for this link (leave empty to REMOVE the password):'
+        : 'Password for this link:',
+    );
+    if (pw === null) return;
+    await api.setSharePassword(s.id, pw || null);
+    notify(pw ? 'Password set' : 'Password removed');
+    load();
+  };
+
+  const q = query.trim().toLowerCase();
+  const filtered = q ? shares.filter((s) => s.path.toLowerCase().includes(q)) : shares;
+
+  return (
+    <div>
+      <h2>Sharing</h2>
+      <p style={{ color: 'var(--text-muted)' }}>
+        Notes shared via a public link are readable by <b>anyone with the URL</b>, without login.
+        Create a link from a note's context menu ("Copy public link"). Disable keeps the URL for
+        re-enabling later; delete revokes it permanently.
+      </p>
+      <input
+        className="text-input"
+        style={{ width: '100%', margin: '6px 0 12px' }}
+        placeholder="Search shared notes…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {filtered.length === 0 && (
+        <div style={{ color: 'var(--text-faint)' }}>
+          {shares.length === 0 ? 'No notes are shared publicly.' : 'No shared note matches the search.'}
+        </div>
+      )}
+      {filtered.map((s) => (
+        <div className="setting-row" key={s.id}>
+          <div className="info" style={{ minWidth: 0 }}>
+            <div
+              className="name"
+              style={{ cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: s.enabled ? 1 : 0.55 }}
+              title={`Open ${s.path}`}
+              onClick={() => { openFile(s.path); setOpen(false); }}
+            >
+              {s.path}
+            </div>
+            <div className="desc">
+              {s.enabled ? 'active' : 'disabled'}
+              {s.hasPassword ? ' · password-protected' : ''} · created {new Date(s.createdAt).toLocaleDateString()}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+            <button className="btn secondary" disabled={!s.enabled} onClick={() => copy(s.id)} title={url(s.id)}>
+              <Icon name="link" size={14} /> Copy link
+            </button>
+            <button className="btn secondary" onClick={() => setPassword(s)} title={s.hasPassword ? 'Change or remove password' : 'Require a password to open the link'}>
+              {s.hasPassword ? 'Password ✓' : 'Password…'}
+            </button>
+            <button className={`btn ${s.enabled ? 'secondary' : ''}`} onClick={() => toggle(s)}>
+              {s.enabled ? 'Disable' : 'Enable'}
+            </button>
+            <button className="btn danger" onClick={() => remove(s)}>Delete</button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

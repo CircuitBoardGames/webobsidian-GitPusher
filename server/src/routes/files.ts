@@ -8,6 +8,7 @@ import { qmd } from '../services/search.js';
 import { updateLinkGraphForFile } from '../services/links.js';
 import { scheduleAutoCommitOnSave } from '../services/git.js';
 import { resolveFile } from '../services/fileindex.js';
+import { onFileRenamed } from '../services/shares.js';
 
 export const filesRouter = Router();
 filesRouter.use(requireAuth);
@@ -116,6 +117,7 @@ filesRouter.patch(
     }
     await vault.rename(from, to);
     await qmd.rename(from, to);
+    await onFileRenamed(from, to).catch(() => {}); // keep public share links pointing at the note
     reindex({ added: to, removed: from });
     res.json({ ok: true, from, to });
   }),

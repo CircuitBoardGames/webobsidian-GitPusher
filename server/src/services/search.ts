@@ -29,6 +29,22 @@ export interface SearchHit {
   snippet: string;
 }
 
+/** One match snippet within a note. `ranges` are [start,len] offsets into `text`
+ *  marking where the query terms occur (for highlighting). */
+export interface MatchContext {
+  text: string;
+  ranges: [number, number][];
+  /** ellipsis flags — context is clipped from the surrounding body. */
+  pre: boolean;
+  post: boolean;
+}
+
+export interface NoteMatches {
+  path: string;
+  count: number; // total term occurrences in the note's body
+  contexts: MatchContext[];
+}
+
 const FIELDS = ['title', 'headings', 'tags', 'path', 'body'] as const;
 
 // Obsidian's built-in properties are always List-typed.
@@ -46,6 +62,15 @@ function inferPropType(key: string, v: unknown): string {
     if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return 'date';
   }
   return 'text';
+}
+
+/** Re-base highlight ranges after `text.trim()` drops leading whitespace. */
+function shiftRanges(untrimmed: string, ranges: [number, number][]): [number, number][] {
+  const lead = untrimmed.length - untrimmed.replace(/^\s+/, '').length;
+  const trimmedLen = untrimmed.trim().length;
+  return ranges
+    .map(([s, l]) => [Math.max(0, s - lead), l] as [number, number])
+    .filter(([s]) => s < trimmedLen);
 }
 
 class QmdEngine {
@@ -166,6 +191,85 @@ class QmdEngine {
       tags: this.tagSet.get(r.id as string) ?? [],
       snippet: this.snippets.get(r.id as string) ?? '',
     }));
+  }
+
+  /** Free-text terms from a query (operators like `tag:`/`path:` stripped),
+   *  used to scan note bodies for highlightable occurrences. */
+  queryTerms(query: string): string[] {
+    const { filterText } = parseFielded(query);
+    return (filterText || query)
+      .split(/\s+/)
+      .map((t) => t.replace(/^["']|["']$/g, '').trim())
+      .filter((t) => t.length >= 2);
+  }
+
+  /** Read a note's body and extract every occurrence of `terms`, grouped into
+   *  context windows (Obsidian-style per-note match list). Reads from disk so
+   *  it's called lazily for the notes actually rendered. */
+  async matchesFor(
+    rel: string,
+    terms: string[],
+    opts: { caseSensitive?: boolean; maxContexts?: number } = {},
+  ): Promise<NoteMatches> {
+    const needles = terms.map((t) => (opts.caseSensitive ? t : t.toLowerCase())).filter(Boolean);
+    if (!needles.length) return { path: rel, count: 0, contexts: [] };
+
+    let body = '';
+    try {
+      body = parseNote(rel, await readFileText(rel)).body;
+    } catch {
+      return { path: rel, count: 0, contexts: [] };
+    }
+    const hay = opts.caseSensitive ? body : body.toLowerCase();
+
+    // Collect every occurrence, then drop overlaps (greedy left-to-right).
+    const raw: { start: number; len: number }[] = [];
+    for (const n of needles) {
+      for (let i = hay.indexOf(n); i !== -1; i = hay.indexOf(n, i + n.length)) {
+        raw.push({ start: i, len: n.length });
+      }
+    }
+    if (!raw.length) return { path: rel, count: 0, contexts: [] };
+    raw.sort((a, b) => a.start - b.start || b.len - a.len);
+    const occ: { start: number; len: number }[] = [];
+    let lastEnd = -1;
+    for (const o of raw) {
+      if (o.start >= lastEnd) {
+        occ.push(o);
+        lastEnd = o.start + o.len;
+      }
+    }
+
+    const PAD = 32; // chars of context on each side
+    const MERGE_GAP = 64; // merge occurrences closer than this into one window
+    const MAX = opts.maxContexts ?? 20;
+    const contexts: MatchContext[] = [];
+    let group: { start: number; len: number }[] = [];
+
+    const flush = () => {
+      if (!group.length || contexts.length >= MAX) {
+        group = [];
+        return;
+      }
+      const winStart = Math.max(0, group[0].start - PAD);
+      const lastOcc = group[group.length - 1];
+      const winEnd = Math.min(body.length, lastOcc.start + lastOcc.len + PAD);
+      // length-preserving newline/tab → space so range offsets stay valid
+      const text = body.slice(winStart, winEnd).replace(/[\n\r\t]/g, ' ');
+      const ranges = group.map((o) => [o.start - winStart, o.len] as [number, number]);
+      contexts.push({ text: text.trim(), ranges: shiftRanges(text, ranges), pre: winStart > 0, post: winEnd < body.length });
+      group = [];
+    };
+
+    for (const o of occ) {
+      if (group.length && o.start - (group[group.length - 1].start + group[group.length - 1].len) > MERGE_GAP) {
+        flush();
+      }
+      group.push(o);
+    }
+    flush();
+
+    return { path: rel, count: occ.length, contexts };
   }
 
   allTags(): { tag: string; count: number }[] {

@@ -10,6 +10,7 @@ import CommandPalette from './components/CommandPalette';
 import Settings from './components/Settings';
 import ContextMenu from './components/ContextMenu';
 import { loadPlugins } from './lib/plugins';
+import { initUrlSync } from './lib/urlsync';
 
 export default function App() {
   const authed = useStore((s) => s.authed);
@@ -36,7 +37,17 @@ export default function App() {
   useEffect(() => {
     if (!authed) return;
     loadTree();
-    useStore.getState().loadUiState(); // restore workspace from server + open note(s)
+    // Deep link (/note/<path>) wins over the restored workspace's active note.
+    const deepLink = initUrlSync();
+    useStore
+      .getState()
+      .loadUiState() // restore workspace from server + open note(s)
+      .then(() => {
+        if (deepLink && deepLink !== useStore.getState().activePath) {
+          return useStore.getState().openFile(deepLink);
+        }
+      })
+      .catch(() => {});
     api
       .getSettings()
       .then((s) => setTheme(s?.ui?.theme === 'obsidian-dark' ? 'theme-dark' : 'theme-light'))

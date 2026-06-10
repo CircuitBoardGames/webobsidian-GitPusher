@@ -18,6 +18,21 @@ searchRouter.get(
   }),
 );
 
+// Per-note match contexts for the rendered batch of results (Obsidian-style
+// grouped search). Reads bodies lazily so broad queries stay cheap.
+searchRouter.post(
+  '/search/matches',
+  asyncHandler(async (req, res) => {
+    const { query, paths, matchCase } = req.body ?? {};
+    const terms = qmd.queryTerms(String(query ?? ''));
+    const list = (Array.isArray(paths) ? paths : []).slice(0, 80).map((p) => String(p));
+    const matches = await Promise.all(
+      list.map((p) => qmd.matchesFor(p, terms, { caseSensitive: !!matchCase })),
+    );
+    res.json({ matches });
+  }),
+);
+
 searchRouter.get(
   '/tags',
   asyncHandler(async (_req, res) => {

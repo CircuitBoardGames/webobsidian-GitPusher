@@ -76,6 +76,15 @@ function Node({ node, depth }: { node: TreeNode; depth: number }) {
     navigator.clipboard?.writeText(node.path).catch(() => {});
     notify('Path copied');
   };
+  const sharePublic = async () => {
+    try {
+      const { share } = await api.createShare(node.path);
+      await navigator.clipboard?.writeText(`${location.origin}/share/${share.id}`);
+      notify('Public link copied');
+    } catch (e: any) {
+      notify(`Share failed: ${e.message}`);
+    }
+  };
 
   const onContext = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -102,6 +111,9 @@ function Node({ node, depth }: { node: TreeNode; depth: number }) {
           { label: 'Open to the right', onClick: () => openToSide(node.path) },
           { label: '', separator: true },
           { label: bookmarks.includes(node.path) ? 'Remove bookmark' : 'Bookmark', onClick: () => toggleBookmark(node.path) },
+          ...(/\.(md|markdown)$/i.test(node.path)
+            ? [{ label: 'Copy public link', icon: 'link', onClick: sharePublic }]
+            : []),
           { label: 'Make a copy', onClick: doCopy },
           { label: 'Rename…', onClick: doRename },
           { label: 'Move file to…', onClick: doMove },
