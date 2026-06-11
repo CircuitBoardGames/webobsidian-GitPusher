@@ -20,7 +20,7 @@ async function tick(): Promise<void> {
   if (Date.now() - last < intervalMs) return;
   running = true;
   try {
-    const res = await sync('WebObsidian auto-sync');
+    const res = await sync();
     lastRun = Date.now();
     if (res.ok) console.log('[autosync] ok:', res.log.join(' | '));
     else console.warn('[autosync] not-ok:', res.log.join(' | '));

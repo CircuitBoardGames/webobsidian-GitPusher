@@ -157,7 +157,7 @@ function GitSettings({ s, reload }: { s: any; reload: () => void }) {
         <button className="btn secondary" onClick={() => run(api.gitInit, 'Init')}>Init repo</button>
         <button className="btn secondary" onClick={() => run(api.gitClone, 'Clone')}>Clone</button>
         <button className="btn secondary" onClick={() => run(api.gitPull, 'Pull')}>Pull</button>
-        <button className="btn secondary" onClick={() => run(() => api.gitCommit('WebObsidian update'), 'Commit')}>Commit</button>
+        <button className="btn secondary" onClick={() => run(() => api.gitCommit(), 'Commit')}>Commit</button>
         <button className="btn secondary" onClick={() => run(api.gitPush, 'Push')}>Push</button>
         <button className="btn" onClick={() => run(() => api.gitSync(), 'Sync')}>Sync now</button>
       </div>

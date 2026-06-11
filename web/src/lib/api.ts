@@ -158,7 +158,7 @@ export const api = {
   gitInit: () => req<any>('/api/git/init', { method: 'POST' }),
   gitClone: () => req<any>('/api/git/clone', { method: 'POST' }),
   gitPull: () => req<{ message: string }>('/api/git/pull', { method: 'POST' }),
-  gitCommit: (message: string) =>
+  gitCommit: (message?: string) =>
     req<{ message: string }>('/api/git/commit', { method: 'POST', body: JSON.stringify({ message }) }),
   gitPush: () => req<{ message: string }>('/api/git/push', { method: 'POST' }),
   gitSync: (message?: string) =>
