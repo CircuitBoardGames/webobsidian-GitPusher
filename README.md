@@ -185,11 +185,42 @@ Everything else — git remote/token, API keys, plugins, theme — is configured
 Scoped REST API for AI agents at `/api/v1`. Create an API key in **Settings → API Keys**,
 then pass it as a header. Full reference: **[docs/AGENT_API.md](docs/AGENT_API.md)**.
 
-> 🧩 **Drop-in agent skill.** Want your coding agent (Claude Code, Codex, OpenCode…) to
-> work with your vault directly? Paste the bootstrap in
-> [docs/agent-skill/INSTALL.md](docs/agent-skill/INSTALL.md) — the agent self-installs the
-> [`webobsidian` skill](docs/agent-skill/webobsidian/SKILL.md), asks for your URL + API key
-> once, saves them, and can then read/write/search your notes on request.
+### 🧩 Drop-in agent skill (no clone needed)
+
+Want your coding agent (Claude Code, Codex, OpenCode, Cursor…) to work with your vault
+directly? **Copy the block below and paste it to your agent.** It downloads the skill from
+GitHub, asks for your URL + API key once, saves them to `~/.webobsidian/credentials.json`,
+and can then read/write/search your notes on request.
+
+> First create an API key in the app at **Settings → API Keys** (scopes `read`/`write`/`search`).
+
+```text
+SYSTEM / TASK — Install the "webobsidian" agent skill from GitHub, then set up credentials.
+Do every step in order; do not skip the credential step.
+
+STEP 1 — Download the skill into your runtime's skills directory
+  (Claude Code: ~/.claude/skills · Codex: ~/.codex/skills · OpenCode: ~/.opencode/skills):
+      SKILLS_DIR=~/.claude/skills        # change for your runtime
+      mkdir -p "$SKILLS_DIR/webobsidian"
+      curl -fsSL https://raw.githubusercontent.com/xnohat/webobsidian/main/docs/agent-skill/webobsidian/SKILL.md \
+        -o "$SKILLS_DIR/webobsidian/SKILL.md"
+
+STEP 2 — Set up credentials (ASK ME; never echo the key back). Ask me for my WebObsidian
+  base URL (e.g. https://notes.example.com) and my API key (looks like wok_...), then:
+      mkdir -p ~/.webobsidian && chmod 700 ~/.webobsidian
+      printf '{ "baseUrl": "%s", "apiKey": "%s" }\n' "<BASE_URL>" "<API_KEY>" > ~/.webobsidian/credentials.json
+      chmod 600 ~/.webobsidian/credentials.json
+
+STEP 3 — Verify (do NOT print the key) and confirm ready:
+      BASE=$(python3 -c 'import json,os;print(json.load(open(os.path.expanduser("~/.webobsidian/credentials.json")))["baseUrl"].rstrip("/"))')
+      KEY=$(python3 -c 'import json,os;print(json.load(open(os.path.expanduser("~/.webobsidian/credentials.json")))["apiKey"])')
+      curl -s "$BASE/api/v1/health"
+      curl -s -H "X-API-Key: $KEY" "$BASE/api/v1/tags" | head
+  From now on, when I ask you to work with my WebObsidian / Obsidian vault, use the webobsidian skill.
+```
+
+Details & alternatives: [docs/agent-skill/INSTALL.md](docs/agent-skill/INSTALL.md) ·
+canonical skill: [docs/agent-skill/webobsidian/SKILL.md](docs/agent-skill/webobsidian/SKILL.md).
 
 ```bash
 KEY=wok_your_key_here
