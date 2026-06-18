@@ -201,10 +201,15 @@ export default function CanvasView() {
   }, [activePath]);
 
   // Zoom-to-fit once per opened canvas (after its data is parsed + viewport sized).
+  // Guard: do nothing until the canvas actually has nodes — otherwise the rAF could
+  // fire before content loads, fit an empty bbox (→ 100%), and mark the canvas as
+  // fitted so the real data (one tick later) never re-fits. We only mark `fittedFor`
+  // after a real fit, so the effect re-runs (via the `data` dep) until nodes exist.
   useEffect(() => {
     if (!activePath || fittedFor.current === activePath) return;
+    if (data.nodes.length === 0) return;
     const id = requestAnimationFrame(() => {
-      if (!vpRef.current) return;
+      if (!vpRef.current || !dataRef.current.nodes.length) return;
       fittedFor.current = activePath;
       zoomFit();
     });
