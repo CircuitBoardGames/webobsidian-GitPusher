@@ -436,6 +436,12 @@ Cập nhật lần cuối: 2026-06-23 (fix — internal link tới file `.canvas
   Sửa 2 chỗ: (1) `server/src/routes/search.ts` — khi `resolveLink` miss và target có đuôi **không phải md**, fallback
   sang `resolveFile` (file index toàn vault) để mở đúng canvas; bare `[[Foo]]` vẫn giữ hành vi cũ. (2)
   `web/src/lib/store.ts#openWikilink` — chỉ nối `.md` khi target **không có đuôi**, tránh `Foo.canvas.md`. Typecheck sạch.
+  **Khi deploy phát hiện thêm 2 lỗi:** (a) note đã chuyển vào `.trash` vẫn bị index trong link graph nên file rác
+  `Foo.canvas.md` (do chính bug cũ tạo) **che** canvas thật → `/api/resolve` trả path trong `.trash`. Sửa: bỏ qua
+  dotfile/dot-dir trong `listMarkdownFiles()` + `updateLinkGraphForFile()` (đồng bộ với tree view & fileindex). (b)
+  `.dockerignore` không loại `obsvault` (~6 GB LFS bind-mount) nên `COPY . .` nuốt cả vault → build prod treo ~30 phút;
+  thêm `obsvault`/`*.tsbuildinfo`/`desktop/dist|release` → COPY còn ~1.5s. **Đã deploy & verify trên prod**
+  (`xnohat.i234.me:8787`): resolve `Agent SLM Business Model.canvas` → đúng canvas thật, bare wikilink & note thiếu không regression.
 - 2026-06-22 (FR-13 — Desktop app Electron đa nền tảng, theo yêu cầu người dùng): bundle WebObsidian thành
   app cài đặt mac/win/linux (arm64/x64/ia32) tải từ GitHub Release. Thêm workspace `desktop/` là **Electron
   shell** spawn đúng server Express hiện có như tiến trình con (`ELECTRON_RUN_AS_NODE`, `127.0.0.1` + cổng
