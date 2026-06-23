@@ -500,7 +500,10 @@ export const useStore = create<AppState>()(
           const { path } = await api.resolve(target);
           if (path) await get().openFile(path);
           else {
-            const newPath = target.endsWith('.md') ? target : `${target}.md`;
+            // Only append `.md` when the target has no extension at all — a target
+            // like `Foo.canvas` must stay `Foo.canvas`, not become `Foo.canvas.md`.
+            const hasExt = /\.[^./]+$/.test(target);
+            const newPath = hasExt ? target : `${target}.md`;
             await get().createNote(newPath, `# ${target.replace(/\.md$/, '')}\n`);
           }
         } catch {

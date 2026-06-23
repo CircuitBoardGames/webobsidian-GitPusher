@@ -4,7 +4,7 @@
 > Quy ước: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong.
 > Cập nhật file này **mỗi khi** một mục thay đổi trạng thái.
 
-Cập nhật lần cuối: 2026-06-22 (FR-13 — Desktop app Electron đa nền tảng: workspace `desktop/`, esbuild-bundle server, electron-builder, CI `release.yml` publish GitHub Release)
+Cập nhật lần cuối: 2026-06-23 (fix — internal link tới file `.canvas` mở đúng canvas thay vì tạo `*.canvas.md`)
 
 ---
 
@@ -430,6 +430,12 @@ Cập nhật lần cuối: 2026-06-22 (FR-13 — Desktop app Electron đa nền 
       `desktop/release`.
 
 ### Nhật ký tiến độ
+- 2026-06-23 (fix — internal link tới file `.canvas`): click wikilink trỏ tới `Foo.canvas` bị điều hướng sang
+  note markdown mới `Foo.canvas.md`. Nguyên nhân: link graph (`keyToPath`) chỉ index file markdown nên
+  `/api/.../resolve` trả `null` cho target có đuôi `.canvas` → client rơi vào nhánh tạo note & nối thêm `.md`.
+  Sửa 2 chỗ: (1) `server/src/routes/search.ts` — khi `resolveLink` miss và target có đuôi **không phải md**, fallback
+  sang `resolveFile` (file index toàn vault) để mở đúng canvas; bare `[[Foo]]` vẫn giữ hành vi cũ. (2)
+  `web/src/lib/store.ts#openWikilink` — chỉ nối `.md` khi target **không có đuôi**, tránh `Foo.canvas.md`. Typecheck sạch.
 - 2026-06-22 (FR-13 — Desktop app Electron đa nền tảng, theo yêu cầu người dùng): bundle WebObsidian thành
   app cài đặt mac/win/linux (arm64/x64/ia32) tải từ GitHub Release. Thêm workspace `desktop/` là **Electron
   shell** spawn đúng server Express hiện có như tiến trình con (`ELECTRON_RUN_AS_NODE`, `127.0.0.1` + cổng
