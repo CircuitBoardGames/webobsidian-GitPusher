@@ -26,26 +26,6 @@ WebObsidian là web app self-hosted clone toàn diện Obsidian. Thiết kế ch
 - Bảo mật: không log secret/token/API key; hash trước khi lưu; guard path traversal.
 - Commit/push git **chỉ khi người dùng yêu cầu**.
 
-## GitHub release asset attachment (agent convention)
-The GitHub MCP tools available to agent sessions (list/get releases, list/get tags) do **not**
-include creating a release, creating a tag, or uploading a release asset — and `git push` of a tag
-ref is rejected (403) by this environment's git proxy even though branch pushes work. Don't try to
-force either path. Instead, attach files to a release via a GitHub Actions workflow, since the
-Actions-native `GITHUB_TOKEN` has `contents: write` there even when the calling session's own
-credentials don't extend to it:
-- Canonical example: [`.github/workflows/vault-viewer-release-asset.yml`](.github/workflows/vault-viewer-release-asset.yml)
-  — `workflow_dispatch` (with a `tag_name` input) + a path-triggered `push` to `main`, using
-  `softprops/action-gh-release` with `tag_name`/`files` to upload onto an **existing** release
-  without touching its title/notes.
-- Trigger it from an agent session with the `actions_run_trigger` MCP tool
-  (`method: run_workflow`, `workflow_id: <file>.yml`, `ref: main`, matching `inputs`), then poll
-  `actions_list` (`method: list_workflow_runs`) for `conclusion: success` and confirm the asset
-  landed with `get_release_by_tag`.
-- The release itself (the tag + release object) still needs to exist first — created manually via
-  the GitHub UI, since that step also isn't available through the MCP tools in this environment.
-This is the standing convention for **any** repo, not just this one — reuse this pattern rather
-than re-deriving it or reverting to manual per-repo workarounds.
-
 ## Lệnh hữu ích
 ```bash
 npm install            # cài deps toàn workspace
