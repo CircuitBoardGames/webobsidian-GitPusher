@@ -19,3 +19,10 @@ app in this fork (see the README Abstract, `PRD.md` changelog 1.6, `IMPLEMENTATI
 28) port the *UX pattern* from this shim's gate/changes-panel — not its code, since this file talks
 to GitHub's raw Data API directly (it has no filesystem to run git in), while the real app now has
 a proper local git clone to work with instead.
+
+As of 2026-07-14, `ClaudeCode` vendors **this fork's own `main`** (not upstream `xnohat/webobsidian`)
+to build this file — so it stays current with this repo's own feature work going forward. The two
+copies (here and in `ClaudeCode`) are kept byte-identical; see that repo's `CLAUDE.md` ("webobsidian
+vault-viewer.html" section) for the rebuild procedure and
+`wiki-vault/wiki/decisions/Vendor webobsidian from the CircuitBoardGames fork, not upstream.md` for
+the rationale.
