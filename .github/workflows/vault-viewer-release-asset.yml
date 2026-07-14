@@ -1,0 +1,41 @@
+name: Attach vault-viewer.html to release
+
+# Attaches the committed releases/vault-viewer.html as a binary asset on an
+# existing GitHub Release. Separate from release.yml (which builds/publishes
+# the desktop app installers) — this just uploads a static committed file to
+# a release that already exists, via the Actions-native GITHUB_TOKEN (which
+# has release-write access inside CI, unlike an external API session).
+#
+# Trigger: run manually from the Actions tab, or push a change to
+# releases/vault-viewer.html on main (updates the same tag's asset).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to attach the asset to'
+        required: true
+        default: 'vault-viewer-html-v1'
+  push:
+    branches: [main]
+    paths:
+      - 'releases/vault-viewer.html'
+
+permissions:
+  contents: write
+
+jobs:
+  attach-asset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload asset to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || 'vault-viewer-html-v1' }}
+          files: releases/vault-viewer.html
+          # Update the existing release in place — don't touch its title/notes.
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
