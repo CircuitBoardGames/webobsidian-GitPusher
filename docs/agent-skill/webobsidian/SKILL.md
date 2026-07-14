@@ -5,7 +5,7 @@ description: "Read, write, search, and manage notes in a WebObsidian vault throu
 
 # WebObsidian Agent skill
 
-Operate a [WebObsidian](https://github.com/xnohat/webobsidian) vault over its Agent REST
+Operate a [WebObsidian](https://github.com/CircuitBoardGames/webobsidian-GitPusher) vault over its Agent REST
 API at `/api/v1`. Everything is a plain HTTP call authenticated with an API key.
 
 ## Credentials (read these first, every session)

@@ -1,3 +1,14 @@
+> **Abstract.** `webobsidian-GitPusher` is [CircuitBoardGames](https://github.com/CircuitBoardGames)'
+> fork of [xnohat/webobsidian](https://github.com/xnohat/webobsidian), a self-hosted,
+> Obsidian-compatible web app. This fork adds a pre-auth **vault picker** on the login screen
+> (folder text field + file browser, scoped to `ALLOWED_ROOTS`) with **URL-argument autofill**
+> (`?vaultPath=...`) for scripted setups; **deterministic graph-view group colors** (hashed from
+> the query text instead of round-robin); a floating **Changes panel** that can open a **GitHub
+> pull request** for pending vault edits (reusing the app's own git service, github.com remotes
+> only) or **download the whole vault as a zip** for vaults with no git remote configured. All
+> upstream functionality is unchanged. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Phase
+> 28 and [PRD.md](PRD.md) changelog 1.6 for the full breakdown.
+
 <div align="center">
 
 <img src="assets/logo.png" alt="WebObsidian logo" width="140" />
@@ -74,8 +85,8 @@ stack runs from a single `docker compose up`.
 ## 🚀 Quick start (Docker)
 
 ```bash
-git clone https://github.com/xnohat/webobsidian.git
-cd webobsidian
+git clone https://github.com/CircuitBoardGames/webobsidian-GitPusher.git
+cd webobsidian-GitPusher
 cp .env.example .env          # edit VAULT_HOST_PATH, set WEBOBSIDIAN_PASSWORD
 docker compose up -d --build
 # open http://localhost:8787
@@ -88,7 +99,7 @@ deployment settings live in **`.env`** (git-ignored) — you never edit the trac
 ## 🖥️ Desktop app (no server setup)
 
 Prefer a native app? Grab an installer from the
-[**Releases**](https://github.com/xnohat/webobsidian/releases) page — available for
+[**Releases**](https://github.com/CircuitBoardGames/webobsidian-GitPusher/releases) page — available for
 **macOS / Windows / Linux** (arm64 · x64 · ia32):
 
 | Platform | Download |
@@ -230,7 +241,7 @@ STEP 1 — Download the skill into your runtime's skills directory
   (Claude Code: ~/.claude/skills · Codex: ~/.codex/skills · OpenCode: ~/.opencode/skills):
       SKILLS_DIR=~/.claude/skills        # change for your runtime
       mkdir -p "$SKILLS_DIR/webobsidian"
-      curl -fsSL https://raw.githubusercontent.com/xnohat/webobsidian/main/docs/agent-skill/webobsidian/SKILL.md \
+      curl -fsSL https://raw.githubusercontent.com/CircuitBoardGames/webobsidian-GitPusher/main/docs/agent-skill/webobsidian/SKILL.md \
         -o "$SKILLS_DIR/webobsidian/SKILL.md"
 
 STEP 2 — Set up credentials (ASK ME; never echo the key back). Ask me for my WebObsidian
