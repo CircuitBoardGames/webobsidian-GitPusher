@@ -18,6 +18,31 @@ nothing is embedded in the file itself, and nothing defaults to any particular p
 Connect-screen fields autofill from URL query params (`?mode=github&owner=&repo=&branch=&index=&
 prefix=`, or `?mode=local`) for scripted/shared setups — the token is never accepted via URL.
 
+## Capabilities
+
+Beyond browsing and editing, the shim makes the compiled app behave correctly with no server behind
+it:
+
+- **Full app UI**: file tree, live/reading/source views, Properties, tags, backlinks, full graph
+  view, and search. Graph communities are auto-colored (via WebObsidian's own Groups mechanism, no
+  plugin changes) and the same colors dot the file-tree bullets — for both pre-built-index vaults
+  and lazily-scanned ones.
+- **Honest about server-only features**: UI that can't work without a WebObsidian server (Sharing,
+  API Keys, Community Plugins, Git Sync, password change, "Open in new window") is hidden rather than
+  presenting fake success. The status bar shows the real connection state.
+- **Client-side extras**: "Download vault (.zip)" builds a real ZIP in the browser; version history
+  reads the GitHub commits API (GitHub mode); deletes route through a restorable virtual trash.
+- **Persistence**: the theme persists to `localStorage`, and a same-tab reload auto-reconnects to
+  the same vault (so a theme change or refresh keeps your place instead of dropping to the connect
+  screen). Logout is its own Settings tab and returns you to the gate. The GitHub token lives only
+  in the browser — never a cookie, never the URL.
+- **One clear push control**: in GitHub mode, edits collect on a single floating button
+  ("⬆ Push N change(s)…") that opens the Changes panel and pushes a PR.
+
+**API & internals reference:** [`VAULT_VIEWER_API.md`](VAULT_VIEWER_API.md) documents every endpoint
+the shim answers (the app's `/api/*` and `/auth/*` calls), how each maps to GitHub / local / a stub,
+the storage keys, and how to extend the route table.
+
 It's a companion artifact, not part of the app's own runtime — the real app is `server/` + `web/`
 in this repo. This file is kept here (and as a release asset) rather than referenced from the
 README's main install path, since it targets a different use case: browsing/editing a vault with

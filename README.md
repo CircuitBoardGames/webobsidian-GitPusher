@@ -8,6 +8,12 @@
 > only) or **download the whole vault as a zip** for vaults with no git remote configured. All
 > upstream functionality is unchanged. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Phase
 > 28 and [PRD.md](PRD.md) changelog 1.6 for the full breakdown.
+>
+> A **serverless single-file build** of this app also ships in [`releases/`](releases/) —
+> [`vault-viewer.html`](releases/vault-viewer.html) runs the whole app with **no server** by
+> intercepting its API layer and live-fetching from a GitHub repo or a local folder (File System
+> Access API). See [`releases/README.md`](releases/README.md) for capabilities and
+> [`releases/VAULT_VIEWER_API.md`](releases/VAULT_VIEWER_API.md) for the full shim API reference.
 
 <div align="center">
 
