@@ -53,6 +53,9 @@ stack runs from a single `docker compose up`.
   prefix matching, incremental indexing, persisted to disk for fast startup.
 - 🔄 **GitHub sync** — native `git` pull / commit / push with **Git LFS** for large
   attachments, optional auto-sync, and per-file **version history** (browse & restore).
+- 🔃 **Pull requests & vault export** — a floating Changes panel lists pending edits and
+  can open a GitHub pull request for them (github.com remotes only), or download the whole
+  vault as a zip — the only path for a local-only vault with no git remote configured.
 - 🔐 **Login gate** — a single master password (scrypt-hashed) protects everything; JWT in
   an httpOnly cookie.
 - 🌐 **Public sharing** — turn any note into a read-only, server-rendered (SEO-friendly)
@@ -117,6 +120,13 @@ HTTP_PORT=8787
 
 Then `docker compose up -d --build`. Your vault can be a plain folder or a `git clone`
 (Git LFS is supported for attachments).
+
+You can also pick the vault folder right on the login screen — a text field plus a
+"Browse…" file picker (confined to `ALLOWED_ROOTS`) let you point at a vault before
+signing in, instead of only via `VAULT_PATH`/`.env`. For scripted setups, the vault path
+field auto-fills from a `?vaultPath=/abs/path` query parameter and the param is then
+stripped from the address bar. The password field intentionally does **not** support
+URL autofill — see [Security notes](#-security-notes).
 
 ### Behind a reverse proxy (TLS)
 
@@ -311,6 +321,13 @@ See [PRD.md §2](PRD.md) for the full design.
   limiting and audit logging.
 - All file paths are guarded against traversal; the vault picker is confined to
   `ALLOWED_ROOTS`.
+- The login screen's vault-folder browser (`GET /auth/browse`) is reachable without
+  authentication by necessity (there's no session yet to gate on) — it's read-only
+  (directory names only) and confined to `ALLOWED_ROOTS`, but keep those roots scoped to
+  paths you're comfortable naming to an anonymous caller.
+- Login/setup only accept the vault path via URL query param or form field — never the
+  password. Query strings are commonly logged by reverse proxies and CDNs and persist in
+  browser history, so a URL-fillable password would be a real credential-leak vector.
 - Secrets (git token / API keys) live in `data/settings.json` on the server — mount `/data`
   as a private volume and keep it off version control. **Change the default password.**
 

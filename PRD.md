@@ -1,7 +1,17 @@
 # PRD — WebObsidian
 
 > Product Requirements Document
-> Phiên bản: 1.5 · Cập nhật: 2026-06-22 · Trạng thái: Draft
+> Phiên bản: 1.6 · Cập nhật: 2026-07-14 · Trạng thái: Draft
+> Changelog 1.6 (FR-2/FR-3/FR-4 — public-fork feature set, theo yêu cầu người dùng): (a) **FR-3**
+> login screen giờ có vault-folder text field + file browser pre-auth (`GET /auth/browse`), cùng
+> URL query autofill (`?vaultPath=...`) cho field không nhạy cảm — password không hỗ trợ autofill
+> qua URL; (b) **FR-2** graph view group color giờ tất định (hash query → HSL), thay round-robin
+> theo thứ tự group; (c) **FR-4** panel "Changes" nổi liệt kê thay đổi đang chờ + nút "Create Pull
+> Request" (branch cục bộ → commit → push → GitHub REST Pulls API, chỉ hỗ trợ remote github.com) và
+> "Download vault (.zip)" (`GET /api/files/export`, toàn bộ vault hiện tại) cho vault không có git
+> remote. Đã port lại **UX pattern** (không phải code) từ một shim thử nghiệm nội bộ
+> (`graphify-out/obsidian/vault-viewer.html`, dự án khác) — kiến trúc PR thực tế tái dùng git service
+> cục bộ sẵn có của app thay vì gọi thẳng GitHub Data API như bản thử nghiệm đó.
 > Changelog 1.5 (FR-13 — Desktop app Electron đa nền tảng, theo yêu cầu người dùng): bổ sung **FR-13** —
 > đóng gói WebObsidian thành **app cài đặt** macOS/Windows/Linux (arm64/x64/ia32). Workspace mới `desktop/`
 > là **Electron shell** spawn đúng server Express hiện có như tiến trình con (qua `ELECTRON_RUN_AS_NODE`,
@@ -217,6 +227,9 @@ webobsidian/
   - Tìm node trên graph: ô search nổi (góc trên-trái), gõ keywords → danh sách node khả dĩ
     (note/tag/attachment đang hiển thị trên graph); click hoặc Enter → camera bay (pan+zoom mượt)
     tới node, node được highlight kiểu hover (accent + dim phần không liên kết) tới khi di chuột.
+  - **Group color**: màu mặc định của group mới được suy ra tất định từ text query (hash → HSL →
+    hex), không còn round-robin theo thứ tự group — cùng một query luôn ra cùng một màu ở mọi
+    vault/phiên. Người dùng vẫn có thể ghi đè bằng color picker.
 
 ### FR-3 · Login gate
 - **Mật khẩu mặc định khi cài đặt: `123456`** — không cần bước setup, đăng nhập ngay được
@@ -228,6 +241,14 @@ webobsidian/
   chấp nhận pass override **bất kể** người dùng đã đổi pass hay chưa. Mặc định không có override.
 - Đăng nhập 1 password → JWT trong httpOnly cookie.
 - Mọi route web & file API yêu cầu auth (trừ `/login`, healthcheck).
+- **Vault picker trên màn login (pre-auth)**: ô nhập đường dẫn vault + nút "Browse…" mở file
+  browser (giới hạn `ALLOWED_ROOTS`, cùng logic containment với Settings → Vault path). Chọn xong
+  submit cùng password → server đổi `settings.vault.path` trước khi hoàn tất login, validate bằng
+  `assertVaultPathAllowed` (403 nếu ngoài allowed roots). Endpoint `GET /auth/browse` cố tình public
+  (không có session trước khi vault được chọn) — chỉ đọc tên thư mục, không đọc nội dung file.
+- **URL query autofill**: `?vaultPath=/abs/path` tự điền ô vault path trên login rồi bị xoá khỏi
+  URL (`history.replaceState`) — dùng cho setup tự động hoá. Trường password **không** hỗ trợ autofill
+  qua URL (query string bị log bởi proxy/CDN và lưu trong browser history).
 
 ### FR-4 · GitHub sync
 - Cấu hình: repo URL, branch, token (PAT) hoặc deploy key, tên/email commit.
@@ -238,6 +259,17 @@ webobsidian/
   `GET /api/git/log` & `/api/git/show`; UI modal liệt kê version, preview nội dung, "Restore this version"
   (ghi đè + reload). Rỗng khi vault chưa là git repo / chưa bật Git Sync.
 - Conflict: phát hiện, báo người dùng, chiến lược merge cơ bản (ưu tiên hỏi).
+- **Tạo Pull Request từ thay đổi đang chờ**: panel nổi "Changes" (góc dưới-phải) hiển thị số file
+  mới/sửa/staged (từ `GET /api/git/status`, đã có sẵn `describeChanges`). Nút "Create Pull Request"
+  (chỉ hiện khi git sync bật **và** remote là `github.com`): tạo branch cục bộ
+  `webobsidian/<timestamp>`, commit toàn bộ thay đổi (`commitAll`), push, rồi gọi GitHub REST API
+  `POST /repos/{owner}/{repo}/pulls` bằng token đã cấu hình ở Settings → Git (cần scope `repo`) —
+  không phải Data API thô (blob/tree/commit) mà tái dùng git clone cục bộ sẵn có của app. Trả về
+  link PR. GitLab/Bitbucket remote: chưa hỗ trợ (out of scope đợt này).
+- **Download vault (.zip)**: `GET /api/files/export` (auth) nén toàn bộ vault hiện tại (kể cả
+  folder/note mới tạo trong app) thành zip, loại trừ dotfiles/.trash/.git/node_modules (cùng luật
+  với `listTree`). Đường thoát duy nhất cho vault chỉ-local (không có git remote) để lấy thay đổi
+  ra khỏi server; vẫn hiển thị song song với "Create Pull Request" khi có remote, không phải either/or.
 
 ### FR-5 · Settings (JSON db)
 - Toàn bộ cấu hình trong `data/settings.json` (atomic write, có backup).

@@ -4,7 +4,7 @@
 > Quy ước: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong.
 > Cập nhật file này **mỗi khi** một mục thay đổi trạng thái.
 
-Cập nhật lần cuối: 2026-06-27 (security fix — chặn leo thang quyền token share; merge fix F-03 rate-limit, giữ `trust proxy` mặc định bật)
+Cập nhật lần cuối: 2026-07-14 (Phase 28 — vault picker pre-auth + URL autofill, graph group color hashing, PR creation, vault zip export)
 
 ---
 
@@ -429,7 +429,47 @@ Cập nhật lần cuối: 2026-06-27 (security fix — chặn leo thang quyền
       bundle desktop. Root scripts `desktop`/`desktop:dist`/`desktop:publish`; `.gitignore` thêm `desktop/.gen`,
       `desktop/release`.
 
+## Phase 28 — Public-fork feature set: vault picker, PR creation, vault export (FR-2/FR-3/FR-4, PRD 1.6, theo yêu cầu người dùng)
+- [x] M28.1 Login screen vault picker (FR-3): `services/settings.ts` gets shared `browseFolder`/
+      `assertVaultPathAllowed`/`effectiveRoots` (extracted out of the post-auth Settings route so
+      both callers share one implementation). New pre-auth `GET /auth/browse`. `POST /auth/setup`
+      and `POST /auth/login` accept an optional `vaultPath`, validated before completing auth.
+      `Login.tsx` gets a vault-path text field + `FolderBrowser` (new shared component, also now
+      used by `Settings.tsx`'s vault-path picker). `SECURITY.md`/`README.md` document the pre-auth
+      exposure tradeoff.
+- [x] M28.2 URL autofill (FR-3): `Login.tsx` reads `?vaultPath=` on mount via `URLSearchParams`,
+      pre-fills, strips it with `history.replaceState`. Password intentionally excluded from URL
+      autofill.
+- [x] M28.3 Graph view group color (FR-2): `hashGroupColor()` in `GraphView.tsx` (hash → HSL → hex,
+      same algorithm as `scripts/build_vault_index.py`'s `js_hash`/`hsl_to_hex` in the `ClaudeCode`
+      companion repo) seeds a group's color from its query text whenever the query changes,
+      replacing the round-robin `GROUP_COLORS[i % n]` default. Deterministic across vaults/sessions.
+- [x] M28.4 Create Pull Request (FR-4): `git.ts` service gets `createPullRequest(title, body?)` —
+      branch off the configured base locally, `commitAllImpl`, push, then `POST .../pulls` via
+      GitHub's REST API using the existing `settings.git.token`. `GitStatus` gains a `githubRemote`
+      flag (regex on `settings.git.remote`) so the UI only offers PR creation for github.com
+      remotes. New route `POST /api/git/pull-request`.
+- [x] M28.5 Changes panel + vault export (FR-4): new floating `ChangesPanel.tsx` (bottom-right badge
+      + panel, mounted in `App.tsx`) polls `GET /api/git/status`, offers "Create Pull Request" (when
+      `githubRemote`) and "Download vault (.zip)" (always). New `vault.exportZip()` +
+      `GET /api/files/export` stream a full-vault zip (`archiver` dependency added), reusing
+      `listTree()`'s existing dotfile/`.trash`/`.git`/`node_modules` exclusions.
+- Verify: `npm run typecheck && npm run build` clean on both workspaces. Server smoke-tested
+  standalone (fresh `DATA_DIR`): `GET /auth/browse` returns `ALLOWED_ROOTS`-scoped folder listing
+  pre-auth; `POST /auth/login` with `vaultPath` switches `settings.vault.path` and rejects a path
+  outside `ALLOWED_ROOTS` with 403 before the password check. PR creation and zip export verified
+  by code review + typecheck only (no live GitHub remote / real vault to exercise them against in
+  this session) — exercise both against a real git-backed vault before relying on them.
+
 ### Nhật ký tiến độ
+- 2026-07-14: Phase 28 (public-fork feature set) — see phase items above for the full breakdown.
+  Ported the *UX pattern* of a login-time data-source gate + a floating pending-changes panel from
+  an internal experiment (`graphify-out/obsidian/vault-viewer.html` + `scripts/build_vault_index.py`
+  in the sibling `ClaudeCode` repo), not its code — that shim talks to GitHub's raw Data API because
+  it has no filesystem; this app already has a proper local git service, so PR creation reuses that
+  instead of reimplementing blob/tree/commit/ref calls. Upstream maintainer attribution (`xnohat`)
+  deliberately left untouched — out of scope for this pass. Typecheck + build clean both workspaces;
+  `/auth/browse` and vault-path-on-login smoke-tested against a standalone server instance.
 - 2026-06-27 (security fix — leo thang quyền qua token share): `verifyToken()` (server/src/services/auth.ts)
   chỉ kiểm tra chữ ký nên **mọi** token ký bằng `auth.jwtSecret` đều được chấp nhận như phiên owner. Endpoint
   public `POST /public/shares/:id/unlock` ký unlock-cookie bằng cùng secret → người được chia sẻ (có mật khẩu

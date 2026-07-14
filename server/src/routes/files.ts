@@ -36,6 +36,22 @@ filesRouter.get(
   }),
 );
 
+// Full-vault zip download (FR: local-only vaults have no repo to push/PR
+// against, so this is their "get my changes out" path).
+filesRouter.get(
+  '/export',
+  asyncHandler(async (_req, res) => {
+    const root = await vault.getVaultRoot();
+    const name = path.basename(root) || 'vault';
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}-${date}.zip"`);
+    const archive = await vault.exportZip();
+    archive.on('error', (err) => res.destroy(err));
+    archive.pipe(res);
+  }),
+);
+
 filesRouter.get(
   '/content',
   asyncHandler(async (req, res) => {

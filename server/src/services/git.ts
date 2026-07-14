@@ -20,6 +20,14 @@ export interface GitStatus {
   lfsAvailable: boolean;
   remote: string;
   clean: boolean;
+  /** Whether `remote` looks like a github.com URL — gates the "Create Pull Request" UI. */
+  githubRemote: boolean;
+}
+
+/** `{owner, repo}` for a github.com remote URL, or null (any other host, or none). */
+function parseGitHubOwnerRepo(remote: string): { owner: string; repo: string } | null {
+  const m = remote.match(/github\.com[/:]([^/]+)\/([^/]+?)(\.git)?$/i);
+  return m ? { owner: m[1], repo: m[2] } : null;
 }
 
 async function git(): Promise<SimpleGit> {
@@ -90,6 +98,8 @@ export const init = (): Promise<void> => withGitLock(initImpl);
 export const clone = (): Promise<void> => withGitLock(cloneImpl);
 export const sync = (message?: string): Promise<{ ok: boolean; log: string[] }> =>
   withGitLock(() => syncImpl(message));
+export const createPullRequest = (title: string, body?: string): Promise<{ url: string; number: number }> =>
+  withGitLock(() => createPullRequestImpl(title, body));
 
 /** Compose an authenticated remote URL from settings (PAT embedded). */
 async function authedRemote(): Promise<string> {
@@ -223,6 +233,7 @@ async function statusImpl(): Promise<GitStatus> {
       lfsAvailable: await lfsAvailable(),
       remote: s.git.remote,
       clean: true,
+      githubRemote: parseGitHubOwnerRepo(s.git.remote) !== null,
     };
   }
   const st = await g.status();
@@ -239,6 +250,7 @@ async function statusImpl(): Promise<GitStatus> {
     lfsAvailable: await lfsAvailable(),
     remote: s.git.remote,
     clean: st.isClean(),
+    githubRemote: parseGitHubOwnerRepo(s.git.remote) !== null,
   };
 }
 
@@ -479,4 +491,74 @@ async function syncImpl(message?: string): Promise<{ ok: boolean; log: string[] 
     return { ok: false, log };
   }
   return { ok: true, log };
+}
+
+/**
+ * Open a GitHub pull request for the vault's pending changes. Unlike a raw
+ * GitHub Data-API push, this reuses the app's own local git clone: branch off
+ * the configured base, commit everything pending via the existing
+ * commitAllImpl (so the PR gets the same auto-generated per-note description
+ * a manual commit would), push the branch, then open the PR through GitHub's
+ * REST API with the same token already configured for git push auth.
+ * GitHub-only for now — self-hosting against GitLab/Bitbucket remotes isn't
+ * wired up to their (different) MR/PR APIs yet.
+ */
+async function createPullRequestImpl(title: string, body?: string): Promise<{ url: string; number: number }> {
+  const s = await getSettings();
+  if (!s.git.enabled || !s.git.remote) {
+    throw Object.assign(new Error('Git sync is not configured (Settings → Git)'), { status: 400 });
+  }
+  const parsed = parseGitHubOwnerRepo(s.git.remote);
+  if (!parsed) {
+    throw Object.assign(new Error('Pull requests are only supported for github.com remotes'), { status: 400 });
+  }
+  if (!s.git.token) {
+    throw Object.assign(
+      new Error('A GitHub token with repo scope (Settings → Git) is required to open a pull request'),
+      { status: 400 },
+    );
+  }
+
+  const g = await git();
+  if (!(await isRepo(g))) {
+    throw Object.assign(new Error('Vault is not a git repository yet — run Init or Clone first'), { status: 400 });
+  }
+  await recoverMerge(g);
+
+  const base = s.git.branch || 'main';
+  const branch = `webobsidian/${Date.now()}`;
+  const remote = await authedRemote();
+  if (remote) await g.remote(['set-url', 'origin', remote]);
+
+  await g.checkoutLocalBranch(branch);
+  try {
+    const commitMsg = await commitAllImpl(title);
+    if (commitMsg === 'Nothing to commit') {
+      throw Object.assign(new Error('No pending changes to open a pull request for'), { status: 400 });
+    }
+    await g.push('origin', branch, ['--set-upstream']);
+  } catch (e) {
+    await g.checkout(base).catch(() => {});
+    await g.deleteLocalBranch(branch, true).catch(() => {});
+    throw e;
+  }
+  // Leave the working tree back on the base branch — the changes now live on
+  // `branch` (pushed to origin), not mid-feature-branch on the server.
+  await g.checkout(base).catch(() => {});
+
+  const res = await fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}/pulls`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${s.git.token}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ title, head: branch, base, body: body || '' }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw Object.assign(new Error(`GitHub API ${res.status}: ${detail.slice(0, 300)}`), { status: 502 });
+  }
+  const pr = (await res.json()) as { html_url: string; number: number };
+  return { url: pr.html_url, number: pr.number };
 }

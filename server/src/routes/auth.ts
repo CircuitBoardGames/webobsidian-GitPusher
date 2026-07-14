@@ -11,8 +11,24 @@ import {
   MIN_PASSWORD_LEN,
 } from '../services/auth.js';
 import { loginRateLimit } from '../middleware/ratelimit.js';
+import { updateSettings, ensureVaultBrowsable, assertVaultPathAllowed, browseFolder } from '../services/settings.js';
 
 export const authRouter = Router();
+
+/**
+ * If the login/setup form supplied a vault path, switch the server's (single)
+ * active vault to it before completing auth — same containment check as the
+ * post-auth Settings picker. No-ops when vaultPath is absent/blank so normal
+ * password-only login is unaffected.
+ */
+async function applyVaultPathIfProvided(vaultPath: unknown): Promise<void> {
+  if (typeof vaultPath !== 'string' || !vaultPath.trim()) return;
+  await assertVaultPathAllowed({ path: vaultPath });
+  await updateSettings((d) => {
+    d.vault.path = vaultPath;
+    ensureVaultBrowsable(d);
+  });
+}
 
 // A `Secure` cookie is silently dropped by browsers over plain http://, so tying
 // it to NODE_ENV broke HTTP-only self-hosting (every API call 401'd → blank UI).
@@ -47,14 +63,25 @@ authRouter.post(
       res.status(409).json({ error: 'Password already set' });
       return;
     }
-    const { password } = req.body ?? {};
+    const { password, vaultPath } = req.body ?? {};
     if (typeof password !== 'string') {
       res.status(400).json({ error: 'password required' });
       return;
     }
+    await applyVaultPathIfProvided(vaultPath);
     await setUserPassword(password);
     const token = await issueToken();
     res.cookie(COOKIE_NAME, token, cookieOpts(req)).json({ ok: true });
+  }),
+);
+
+/** Safe folder browser for the login screen's vault picker — pre-auth by
+ * necessity (there's no session yet to gate on), scoped to the same
+ * ALLOWED_ROOTS containment check as the post-auth Settings browser. */
+authRouter.get(
+  '/browse',
+  asyncHandler(async (req, res) => {
+    res.json(await browseFolder(req.query.dir ? String(req.query.dir) : undefined));
   }),
 );
 
@@ -85,11 +112,12 @@ authRouter.post(
   '/login',
   loginRateLimit,
   asyncHandler(async (req, res) => {
-    const { password } = req.body ?? {};
+    const { password, vaultPath } = req.body ?? {};
     if (typeof password !== 'string' || !(await checkPassword(password))) {
       res.status(401).json({ error: 'Invalid password' });
       return;
     }
+    await applyVaultPathIfProvided(vaultPath);
     const token = await issueToken();
     res
       .cookie(COOKIE_NAME, token, cookieOpts(req))

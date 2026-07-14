@@ -79,3 +79,16 @@ gitRouter.post(
     res.json(result);
   }),
 );
+
+gitRouter.post(
+  '/pull-request',
+  asyncHandler(async (req, res) => {
+    const title = String(req.body?.title ?? '').trim();
+    if (!title) return res.status(400).json({ error: 'title required' });
+    const body = typeof req.body?.body === 'string' ? req.body.body : undefined;
+    console.log('[git] pull request requested');
+    const pr = await git.createPullRequest(title, body);
+    console.log('[git] pull request opened:', pr.url);
+    res.json(pr);
+  }),
+);

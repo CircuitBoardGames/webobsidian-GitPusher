@@ -90,14 +90,19 @@ export class ApiError extends Error {
 export const api = {
   // auth
   authStatus: () => req<{ passwordSet: boolean; mustChangePassword: boolean }>('/auth/status'),
-  setup: (password: string) =>
-    req<{ ok: true }>('/auth/setup', { method: 'POST', body: JSON.stringify({ password }) }),
-  login: (password: string) =>
+  setup: (password: string, vaultPath?: string) =>
+    req<{ ok: true }>('/auth/setup', { method: 'POST', body: JSON.stringify({ password, vaultPath }) }),
+  login: (password: string, vaultPath?: string) =>
     req<{ ok: true; mustChangePassword: boolean }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, vaultPath }),
     }),
   logout: () => req<{ ok: true }>('/auth/logout', { method: 'POST' }),
+  // pre-auth folder browser for the login screen's vault picker
+  authBrowse: (dir?: string) =>
+    req<{ dir: string; parent: string; roots: string[]; folders: { name: string; path: string }[] }>(
+      `/auth/browse${dir ? `?dir=${encodeURIComponent(dir)}` : ''}`,
+    ),
   changePassword: (currentPassword: string, newPassword: string) =>
     req<{ ok: true }>('/auth/change-password', {
       method: 'POST',
@@ -142,6 +147,7 @@ export const api = {
     return res.json() as Promise<{ ok: true; path: string; size: number }>;
   },
   rawUrl: (path: string) => `/api/files/content?path=${encodeURIComponent(path)}`,
+  exportUrl: () => '/api/files/export',
 
   // search & links
   // limit omitted → server returns every match (panel renders them incrementally)
@@ -207,6 +213,11 @@ export const api = {
     req<{ commits: GitCommit[] }>(`/api/git/log?path=${encodeURIComponent(path)}`),
   gitShow: (hash: string, path: string) =>
     req<{ content: string }>(`/api/git/show?hash=${encodeURIComponent(hash)}&path=${encodeURIComponent(path)}`),
+  gitPullRequest: (title: string, body?: string) =>
+    req<{ url: string; number: number }>('/api/git/pull-request', {
+      method: 'POST',
+      body: JSON.stringify({ title, body }),
+    }),
 
   // api keys
   listKeys: () => req<{ keys: any[] }>('/api/keys/'),

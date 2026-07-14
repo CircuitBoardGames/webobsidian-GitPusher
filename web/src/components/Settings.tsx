@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../lib/store';
 import { api } from '../lib/api';
 import Icon from './Icon';
+import FolderBrowser from './FolderBrowser';
 
 type Section = 'vault' | 'git' | 'api' | 'sharing' | 'plugins' | 'appearance' | 'account' | 'about';
 
@@ -70,7 +71,6 @@ function Row({ name, desc, children }: { name: string; desc?: string; children: 
 function VaultSettings({ s, reload }: { s: any; reload: () => void }) {
   const [path, setPath] = useState(s.vault.path);
   const [deleteMode, setDeleteMode] = useState(s.vault.deleteMode ?? 'trash');
-  const [browser, setBrowser] = useState<any>(null);
   const save = async () => {
     await api.putSettings({ vault: { path } });
     await reload();
@@ -81,7 +81,6 @@ function VaultSettings({ s, reload }: { s: any; reload: () => void }) {
     await api.putSettings({ vault: { deleteMode: mode } });
     await reload();
   };
-  const browse = async (dir?: string) => setBrowser(await api.browse(dir).catch((e) => ({ error: e.message })));
   return (
     <div>
       <h2>Vault & Files</h2>
@@ -89,26 +88,12 @@ function VaultSettings({ s, reload }: { s: any; reload: () => void }) {
         <input className="text-input" style={{ width: 260 }} value={path} onChange={(e) => setPath(e.target.value)} />
       </Row>
       <div style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
-        <button className="btn secondary" onClick={() => browse()}>Browse…</button>
+        <FolderBrowser browse={api.browse} onSelect={setPath} />
         <button className="btn" onClick={save}>Save vault path</button>
+        <a className="btn secondary" href={api.exportUrl()} download>
+          Download vault (.zip)
+        </a>
       </div>
-      {browser && !browser.error && (
-        <div style={{ border: '1px solid var(--bg-modifier-border)', borderRadius: 6, padding: 8, marginTop: 8 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>{browser.dir}</div>
-          <div className="result" onClick={() => browse(browser.parent)} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="folder" size={15} /> ..
-          </div>
-          {browser.folders.map((f: any) => (
-            <div className="result" key={f.path} onClick={() => browse(f.path)} onDoubleClick={() => setPath(f.path)} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="folder" size={15} /> {f.name}
-              <button className="btn secondary" style={{ float: 'right', padding: '2px 8px' }} onClick={(e) => { e.stopPropagation(); setPath(f.path); }}>
-                Select
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {browser?.error && <div style={{ color: '#e5534b' }}>{browser.error}</div>}
       <Row
         name="When deleting a file"
         desc="Move to .trash keeps a recoverable copy (Open trash to restore). Permanently delete removes it immediately."

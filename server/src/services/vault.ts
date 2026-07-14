@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { ZipArchive, type Archiver } from 'archiver';
 import { getSettings } from './settings.js';
 
 export interface TreeNode {
@@ -134,6 +135,28 @@ export async function listTree(): Promise<TreeNode> {
   }
 
   return { name: path.basename(root), path: '', type: 'folder', children: await walk(root) };
+}
+
+/**
+ * Zip the full current vault state — every note/folder as it stands now,
+ * including anything new or edited in-app — for the "download a copy" flow
+ * on vaults with no git remote to push/PR against. Reuses listTree() so it
+ * inherits the same exclusions (dotfiles/.trash, .git, node_modules).
+ */
+export async function exportZip(): Promise<Archiver> {
+  const root = await getVaultRoot();
+  const archive: Archiver = new ZipArchive({ zlib: { level: 9 } });
+
+  function addNode(node: TreeNode): void {
+    if (node.type === 'file') {
+      archive.file(path.join(root, node.path), { name: node.path });
+    } else {
+      (node.children ?? []).forEach(addNode);
+    }
+  }
+  (await listTree()).children?.forEach(addNode);
+  void archive.finalize();
+  return archive;
 }
 
 export function isTextFile(rel: string): boolean {

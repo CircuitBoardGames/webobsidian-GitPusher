@@ -28,6 +28,12 @@ safely. Key points:
 - API keys are hashed at rest and scoped (`read` / `write` / `search`) with per-key rate
   limiting.
 - File paths are guarded against traversal; the vault picker is confined to `ALLOWED_ROOTS`.
+- The login screen's vault-folder picker (`GET /auth/browse`) is intentionally reachable
+  without authentication — the vault has to be selectable before a session exists. It is
+  strictly read-only (directory names only, no file contents) and confined to the same
+  `ALLOWED_ROOTS` containment check as the authenticated Settings browser, but it does mean
+  an unauthenticated caller can enumerate folder names under those roots. Keep `ALLOWED_ROOTS`
+  scoped to directories you're comfortable naming to an anonymous caller.
 - Secrets (git token, API keys) live in `data/settings.json` on the server — mount `/data`
   as a private volume and keep it out of version control.
 - Run behind a TLS-terminating reverse proxy (set `HTTP_BIND=127.0.0.1`) for any

@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { config, SETTINGS_FILE } from '../config.js';
@@ -182,6 +183,69 @@ export async function updateSettings(
   cache = validated;
   await persist(validated);
   return validated;
+}
+
+/** The roots a new vault path (or the folder browser) may live under. */
+export async function effectiveRoots(newAllowed?: unknown): Promise<string[]> {
+  const s = await getSettings();
+  const fromBody = Array.isArray(newAllowed)
+    ? (newAllowed as unknown[]).filter((r): r is string => typeof r === 'string')
+    : [];
+  const roots = fromBody.length
+    ? fromBody
+    : s.vault.allowedRoots.length
+      ? s.vault.allowedRoots
+      : config.allowedRoots.length
+        ? config.allowedRoots
+        : [os.homedir()];
+  return roots.map((r) => path.resolve(r));
+}
+
+export async function assertVaultPathAllowed(v: { path: string; allowedRoots?: unknown }): Promise<void> {
+  const target = path.resolve(String(v.path));
+  const roots = await effectiveRoots(v.allowedRoots);
+  const within = roots.some((r) => target === r || target.startsWith(r + path.sep));
+  if (!within) {
+    throw Object.assign(new Error('Vault path is outside the allowed roots'), { status: 403 });
+  }
+  const st = await fs.stat(target).catch(() => null);
+  if (!st || !st.isDirectory()) {
+    throw Object.assign(new Error('Vault path is not an existing directory'), { status: 400 });
+  }
+}
+
+/**
+ * Safe folder browser for picking a vault path, limited to allowed roots.
+ * Shared by the post-auth Settings browser and the pre-auth login-screen
+ * browser (Login needs to pick a vault before there's a session to gate on).
+ */
+export async function browseFolder(dir?: string): Promise<{
+  dir: string;
+  parent: string;
+  roots: string[];
+  folders: { name: string; path: string }[];
+}> {
+  const s = await getSettings();
+  const roots = s.vault.allowedRoots.length
+    ? s.vault.allowedRoots
+    : config.allowedRoots.length
+      ? config.allowedRoots
+      : [os.homedir()];
+  const resolved = dir ? path.resolve(dir) : path.resolve(roots[0]);
+
+  const allowed = roots.some((r) => {
+    const rr = path.resolve(r);
+    return resolved === rr || resolved.startsWith(rr + path.sep);
+  });
+  if (!allowed) {
+    throw Object.assign(new Error('Path outside allowed roots'), { status: 403, roots });
+  }
+  const entries = await fs.readdir(resolved, { withFileTypes: true });
+  const folders = entries
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+    .map((e) => ({ name: e.name, path: path.join(resolved, e.name) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { dir: resolved, parent: path.dirname(resolved), roots, folders };
 }
 
 /** Redact secrets for sending to the client. */
