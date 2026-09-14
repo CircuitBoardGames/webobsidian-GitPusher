@@ -1,0 +1,40 @@
+name: Test
+
+# The forge's gate for this fork. The upstream `.github/workflows/ci.yml` has never run on this
+# forge; a present `.forgejo/workflows` is what the forge reads instead, so the upstream file stays
+# untouched for clean syncs. This is that workflow's `build` job.
+#
+# NOT PORTED: the `docker` job (`docker build`). The runner executes on the AIroborOS host and
+# docker is not installed there, so the job could only ever fail. Re-add it when a runner with
+# docker exists.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Typecheck & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Typecheck desktop
+        run: npm --workspace desktop run typecheck
+      - name: Build
+        run: npm run build
+      - name: Build desktop bundle
+        run: npm --workspace desktop run build
