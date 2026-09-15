@@ -10,8 +10,7 @@ name: Test
 
 on:
   pull_request:
-  push:
-    branches: [main]
+  # No `push:` -- CI is preventative only, nothing runs after a merge (operator, 2026-09-15).
   workflow_dispatch:
 
 concurrency:
